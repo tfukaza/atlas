@@ -19,37 +19,55 @@ def hasdigit(string):
             return True
     return False 
 
-def parseDiv(html):
+def parseDiv(html, major=""):
     
+    C = Course()
+    f = 0
+    e = 0
+
     html = html[f:] #delete chars before the div
     f = html.find("<h3>")
     html = html[f+4:] #delete chars before the h3
     f = html.find(".") #find where course ID ends
-    id = html[0:f-1]
+    #C.id = html[0:f-1]
+    print(html[0:f])
 
-    html = html[f+1:]
+    html = html[f+2:]
     f = html.find("</h3>") #find where course name ends
-    name = html[0:f-1]
+    #C.name = html[0:f-1]
+    print(html[0:f])
 
     f = html.find("<p>Units: ")
-    html = html[f+11:]
-    units = int(html[0])
+    html = html[f+10:]
+    #C.units = int(html[0])
+    print(html[0])
 
     f = html.find("<p>")
     html = html[f+3:]
 
-    f = html.find("equisites: ")
-    html = html[f+12:]
-    e = html.find("equisites: ")
+    e = html.find("</p>")
+    html_tmp = html[0:e]
+    req_f = html_tmp.find("equisites: ")
 
+    if req_f != -1:
+        html_tmp = html_tmp[req_f + 11:]
+        e = html_tmp.find(".")
+        print(parseReq(html_tmp[0:e]))
+       
+        #C.req = parseReq(html[0:e])
+    else:
+        print("no req")
 
-    req = parseReq(html)
+    print("---------")
+    html = html[f+11:]
+    
+    return C
 
 
 def parseReq(html, major=""):
 
     token = html.split()
-    print(token)
+    #print(token)
     result = []
 
     i = 0
@@ -104,7 +122,7 @@ def parseReq(html, major=""):
             if hasdigit(token[i]) == True:              #If this is a name of a class 
                 pre_m = False
                 if state == "last or" or (state == "or" and (token[i][-1] == ',' or i == l - 1)):#if this is the end of a OR substring
-                    r_tmp.append(m_tmp + " " + token[i])      #add the next token as a potential required class
+                    r_tmp.append(cleanID(m_tmp + " " + token[i]))      #add the next token as a potential required class
                     result.append(r_tmp.copy())
                     r_tmp.clear()                       #clear the tmp list
                     state = "idle"                      #reset state to default
@@ -113,9 +131,9 @@ def parseReq(html, major=""):
                     if state == "idle" and len(r_tmp) > 0:#if there is a course that was already in r_tmp
                         result.append([r_tmp[0]])
                         r_tmp = r_tmp[1:]
-                        r_tmp.append(m_tmp + " " + token[i])  
-                    else:
-                        r_tmp.append(m_tmp + " " + token[i])  #add this as a potential requirement
+                    
+                    r_tmp.append(cleanID(m_tmp + " " + token[i]))  
+                    #add this as a potential requirement
                    
             
             else:                                       #The only other possibility is that this token is part of the name of a major
@@ -133,8 +151,15 @@ def parseReq(html, major=""):
 
     return result
 
+def cleanID(s):
+        
+    while s[0] == ' ' or s[0] == ',':
+        s = s[1:]
+    
+    while s[-1] == ' ' or s[-1] == ',':
+        s = s[:-1]
 
-
+    return s
 
 def main():
 
@@ -174,33 +199,34 @@ def main():
 
 
 
-    #major_id = "AERO+ST"
-    #major_url="https://www.registrar.ucla.edu/Academics/Course-Descriptions/Course-Details?SA="
-    #major_url+=major_id
-    #major_url+="&funsel=3"
+    major_id = "AERO+ST"
+    major_url="https://www.registrar.ucla.edu/Academics/Course-Descriptions/Course-Details?SA="
+    major_url+=major_id
+    major_url+="&funsel=3"
 
-    #major_request = urllib.request.Request(url)
-    #major_response  = urllib.request.urlopen(request)
+    major_request = urllib.request.Request(major_url)
+    major_response  = urllib.request.urlopen(major_request)
 
-    #html = major_response.decode("UTF-8")
+    html = major_response.read().decode("utf-8")
 
-    #while 1:
-    #    f = html.find("media-body", i)
-    #    if f < 0:
-    #        break;
-    #    else:
-    #        html = html[f:]
-    #        e = html.find("</div>")
-    #
-    #        parseDiv(html[0:e])
-    #        html = html[e:]
+    courses = []
+
+    while 1:
+        f = html.find("media-body", i)
+        if f < 0:
+            break;
+        else:
+            html = html[f:]
+            e = html.find("</div>")
+    
+            courses.append(parseDiv(html[0:e]))
+            html = html[e:]
 
 
+    print(courses)
 
     #print(response.read().decode("utf-8"))
 
-    test = "Chemistry 20B, Life Sciences 2, 3, Mathematics 33B, Physics 1C"
-    print(parseReq(test, "CS"))
 
 
 if __name__ =="__main__":
