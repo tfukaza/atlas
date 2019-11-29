@@ -138,6 +138,9 @@ def parseReq(html, major=""):
 
     print(tok)
     result = []
+    result.append([])
+    res_counter = 0
+    expression=[]
     eq_class = []
     cur_course = ""
     cur_dept = ""
@@ -157,8 +160,8 @@ def parseReq(html, major=""):
         rule = stack[0][2]
         size  = len(tokens)
         #ret = stack[0][3]
-        print(state)
-        print(tokens)
+        #print(state)
+        #print(tokens)
        
         #print(eq_class)
 
@@ -166,7 +169,7 @@ def parseReq(html, major=""):
         if len(tokens) == 0:
             if cur_course != "":
                 eq_class.append(cur_course)                         #finalize the equivalent class
-            result.append(eq_class.copy())                        #finalize the result
+            result[res_counter].append(eq_class.copy())                        #finalize the result
             break
 
         #[expression]
@@ -180,38 +183,47 @@ def parseReq(html, major=""):
                 # , and [expression]
                 if size > 1 and tokens[0] == ',' and tokens[1] == 'and':
                     eq_class.append(cur_course)                         #finalize the equivalent class
-                    result.append(eq_class.copy())                           #add the eq_class accumulated so far, as ', and' implies that eq_class was another requirement
+                    cur_course = ""
+                    result[res_counter].append(eq_class.copy())                           #add the eq_class accumulated so far, as ', and' implies that eq_class was another requirement
                     stack.insert(0, ["expression", tokens[2:], [-1, -1]])          #recursive
                     continue
                 
                 # , [expression]
-                elif size > 1 and tokens[0] == ',' and tokens[1] == "or":
-                    eq_class.append(cur_course)                         #finalize the equivalent class
-                    tmp = eq_class                        #", or" implies that the class so far was optional  
+                elif size > 1 and tokens[0] == ',' and tokens[1] == 'or':
+                    if cur_course != "":
+                        eq_class.append(cur_course)                         #finalize the equivalent class
+                    cur_course = ""
+                    result[res_counter].append(eq_class.copy())                           #"," is another way to say "and". We can say for sure, since ", or" would already have been handled above
                     eq_class.clear()
-                    if len(tmp) == 1:
-                        eq_class = tmp.copy()
-                    else:
-                        eq_class = [tmp.copy()]
+
+                    result.append([])
+                    res_counter = res_counter + 1
                     stack.insert(0, ["expression", tokens[2:], [-1, -1]])          #recursive
+                    continue
                 
                 # , [expression]
                 elif size > 1 and tokens[0] == ',' and tokens[1] != "or":
                     eq_class.append(cur_course)                         #finalize the equivalent class
-                    result.append(eq_class.copy())                           #"," is another way to say "and". We can say for sure, since ", or" would already have been handled above
+                    cur_course = ""
+                    result[res_counter].append(eq_class.copy())                           #"," is another way to say "and". We can say for sure, since ", or" would already have been handled above
+                    eq_class.clear()
+                   
+                    stack.insert(0, ["expression", tokens[1:], [-1, -1]])          #recursive
+                    continue
+                
+                # and [eq_class]
+                elif tokens[0] == 'and':
+                    eq_class.append(cur_course)                         #finalize the equivalent class
+                    cur_course = ""
+                    result[res_counter].append(eq_class.copy())                           #"," is another way to say "and". We can say for sure, since ", or" would already have been handled above
                     eq_class.clear()
                     stack.insert(0, ["expression", tokens[1:], [-1, -1]])          #recursive
                     continue
                 
-                """ # and [eq_class]
-                elif tokens[0] == 'and':
-                    eq_class.append(cur_course)                         #finalize the equivalent class
-                    result.append(eq_class.copy())                           #"," is another way to say "and". We can say for sure, since ", or" would already have been handled above
-                    eq_class.clear()
-                    stack.insert(0, ["eq_class", tokens[1:], [-1, -1]])          #recursive
-                    continue
-                """
                 #elif len(token) == 0, we are done. else, syntax error
+                else:
+                    print("syntax error")
+                    return[]
 
             # otherwise, we need to check if the non-terminal is a [eq_class]
             else:
@@ -229,22 +241,22 @@ def parseReq(html, major=""):
                     # , or [expression]
                     """if size > 1 and tokens[0] == ',' and tokens[1] == 'or':
                         eq_class.append(cur_course)                         #finalize the equivalent class
-                        tmp = eq_class.copy()                           #", or" implies that the class so far was optional  
+                        result[res_counter].append(eq_class.copy())                           #"," is another way to say "and". We can say for sure, since ", or" would already have been handled above
                         eq_class.clear()
-                        if len(tmp) == 1:
-                            eq_class = [tmp]
-                        else:
-                            eq_class = [tmp]
+
+                        result.append([])
+                        res_counter = res_counter + 1
                         stack.insert(0, ["expression", tokens[2:], [-1, -1]])          #recursive
                         continue
-                """
+                    """
                     # or [eq_class]
-                    if size > 1 and tokens[0] == 'or':
+                    if tokens[0] == 'or':
                         eq_class.append(cur_course)                         #finalize the equivalent class
                         #eq_class.append(eq_class)                           #", or" implies that the class so far was optional  
                         stack.insert(0, ["eq_class", tokens[1:], [-1, -1]])          #recursive
                         continue
-
+                    
+                  
                     #else, we are done with this equivalence class
                     else:
                         stack.pop(0)
@@ -564,11 +576,21 @@ def main():
     #for div in course_div:
     #    courses.append(parseDiv(pq(div)))
    
-    test="two courses in FieldI, or course 20 and one course in FieldI"
-    #test="two courses in FieldI"
+    #test="two courses in FieldI, or course 20 and one course in FieldI"
+    test=[]
+    test.append("CS 100")
+    test.append("CS 100 or CS 200")
+    test.append("CS 100 and CS 200")
+    test.append("one course from CS 100, CS 200, CS 300, or CS 400")
+    test.append("CS 100 or CS 200 or CS 300 or CS 400")
+    test.append("CS 100 and CS 101, or CS 400")
+    test.append("two courses in FieldI")
+    test.append("two courses in FieldI, or course 20 and one course in FieldI")
+    test.append("CS 100 foo")
 
-
-    print(parseReq(test))
+    for i in test:
+        print(i)
+        print(parseReq(i))
 
     #print(courses)
 
