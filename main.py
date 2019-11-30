@@ -3,6 +3,8 @@ import urllib.parse
 import re
 from pyquery import PyQuery as pq 
 
+
+
 #class for each course
 class Course:
         def __init__(self, name="", id="", level="lower", units="", desc="", req=[[]], misc=0):
@@ -18,7 +20,7 @@ class Course:
             self.misc = misc
 
 
-def parseDiv(html, major=""):
+def parseDiv(html, major="", dept=[]):
     
     C = Course()
 
@@ -58,34 +60,35 @@ def parseDiv(html, major=""):
 
     desc_p = query("p").eq(1).text()
 
-    if desc_p[0] == '(':
-        e = desc_p.find(')')
-        desc_p = desc_p[e:]
+    if len(desc_p) > 0:
+        if desc_p[0] == '(':
+            e = desc_p.find(')')
+            desc_p = desc_p[e:]
 
-    type_end = desc_p.find(".")
-    type_tmp = desc_p[0:type_end]
+        type_end = desc_p.find(".")
+        type_tmp = desc_p[0:type_end]
 
-    c_type = ""
+        c_type = ""
 
-    types = ['Laboratory','Lecture','Seminar','Tutorial']
-    for t in types:
-        if type_tmp.find(t) != -1:
-            c_type = t
+        types = ['Laboratory','Lecture','Seminar','Tutorial']
+        for t in types:
+            if type_tmp.find(t) != -1:
+                c_type = t
 
-    desc_p = desc_p[type_end+1:]
+        desc_p = desc_p[type_end+1:]
 
-    print(c_type)
+        print(c_type)
 
-    req_begin = desc_p.find("equisites: ")
+        req_begin = desc_p.find("equisites: ")
 
-    if req_begin != -1:
-        req_tmp = desc_p[req_begin + 11:]
-        req_end = desc_p.find(".")
-        print(parseReq(desc_p[0:req_end]))
-        desc_p = desc_p[req_end+1:]
+        if req_begin != -1:
+            req_tmp = desc_p[req_begin + 11:]
+            req_end = req_tmp.find(".")
+            print(parseReq(req_tmp[0:req_end], major, dept))
+            desc_p = desc_p[req_end+1:]
 
-    else:
-        print("no req")
+        else:
+            print("no req")
 
 
     #print(desc_p[:-3])
@@ -94,6 +97,33 @@ def parseDiv(html, major=""):
   
     return C
 
+
+def tokenizeReq(string, dept_dict):
+
+    print("tokenizing")
+
+    #l = list(string)
+
+    for name in dept_dict:
+        string = string.replace(name[1], name[0])
+
+    #s = "".join(l)
+    s = string
+    print(s)
+
+    tok = s.split() 
+    l = len(tok)
+    i = 0
+    while i < l:
+        if tok[i][-1] == ',':
+            tok[i] = tok[i][0:-1] 
+            tok.insert(i+1, ',')
+            l = l + 1
+            i = i + 2
+        else:
+            i = i + 1
+
+    return tok
 
 def hasDigit(string):
     for c in string:
@@ -111,9 +141,10 @@ def isLevel(string):
         return True
     return False
 
-def isDept(string):
-    if string == "CS":
-        return True
+def isDept(string, dept_dict):
+    for name in dept_dict:
+        if string == name[0]:
+            return True
     return False
 
 def isField(string):
@@ -122,19 +153,9 @@ def isField(string):
     return False
 
 
-def parseReq(html, major=""):
+def parseReq(html, major="", dict = []):
 
-    tok = html.split() 
-    l = len(tok)
-    i = 0
-    while i < l:
-        if tok[i][-1] == ',':
-            tok[i] = tok[i][0:-1] 
-            tok.insert(i+1, ',')
-            l = l + 1
-            i = i + 2
-        else:
-            i = i + 1
+    tok = tokenizeReq(html, dict)
 
     print(tok)
     result = []
@@ -152,7 +173,15 @@ def parseReq(html, major=""):
     #parseExp("expression", token)
     #, [-1, -1]
 
+    counter = 0
+
     while 1:
+
+        counter = counter + 1
+
+        if counter == 100:
+            print("possible infinite loop")
+            break
 
         state  = stack[0][0]
        
@@ -162,8 +191,8 @@ def parseReq(html, major=""):
         #ret = stack[0][3]
         #print(state)
         #print(tokens)
-       
-        #print(eq_class)
+        #print(rule)
+        #print("-------------")
 
         #if there are no tokens, it means the entire string was parsed
         if len(tokens) == 0:
@@ -185,6 +214,7 @@ def parseReq(html, major=""):
                     eq_class.append(cur_course)                         #finalize the equivalent class
                     cur_course = ""
                     result[res_counter].append(eq_class.copy())                           #add the eq_class accumulated so far, as ', and' implies that eq_class was another requirement
+                    eq_class.clear()
                     stack.insert(0, ["expression", tokens[2:], [-1, -1]])          #recursive
                     continue
                 
@@ -264,12 +294,17 @@ def parseReq(html, major=""):
                         stack[0][2] = [1, -1]
                         continue
                 #..after parsing "or_list"
-                if rule[0] == 2:
+                elif rule[0] == 2:
                     #it means the or list finished parsing
                     stack.pop(0)
                     stack[0][1] = tokens
                     stack[0][2] = [1, -1]
                     continue
+
+                else:
+                    stack.pop(0)
+                    stack[0][1] = tokens
+                    stack[0][2] = [1, -1]  
 
 
 
@@ -374,13 +409,13 @@ def parseReq(html, major=""):
 
         if state  == "course_id":
             if (tokens[0] == "course" or tokens[0] == "courses") and hasDigit(tokens[1]):
-                cur_dept = "this_dept"
+                cur_dept = major
                 cur_course = cur_dept + " " + tokens[1]
                 stack.pop(0)
                 stack[0][1] = tokens[2:]
                 stack[0][2] = [5, -1]
                 continue
-            elif isDept(tokens[0]) and hasDigit(tokens[1]):
+            elif isDept(tokens[0], dict) and hasDigit(tokens[1]):
                 cur_dept = tokens[0]
                 cur_course =  tokens[0] + " " + tokens[1]
                 stack.pop(0)
@@ -518,7 +553,10 @@ def cleanID(s):
     return s
 
 def main():
-    """
+    
+
+    print("scraping department list...")
+
     #The main course description page
     url="https://www.registrar.ucla.edu/Academics/Course-Descriptions"
     #request the webpage
@@ -529,9 +567,8 @@ def main():
     html = response.read().decode()
     #pass it into PyQuery for parsing
     query = pq(html, parser='html')
-
-    i = 0
     dept = []
+    i = 0
 
     dept_li = query("a[href *= '/Academics/Course-Descriptions/Course-Details?SA=']")
 
@@ -550,32 +587,49 @@ def main():
 
         dept.append((id, name)) #add the dept id and name tuple to list
 
-    for m in dept:
-        print(m)
+    #print(dept)
 
+    dept_dict = dept.copy()
+
+    for m in dept_dict:
+       print(m)
+
+    print("adding manual naming")
+
+    dept_dict.append(('C&EE', 'Civil Engineering'))
+    dept_dict.append(('EC+ENGR', 'Electrical Engineering'))
+    dept_dict.append(('C&EE', 'Civil ENGR'))
+    dept_dict.append(('EC+ENGR', 'Electrical ENGR'))
+
+    #"""
+    print("scraping")
+
+    for d in dept:
+
+        print("scraping " + d[1])
+
+        dept_id = d[0]
+        dept_url="https://www.registrar.ucla.edu/Academics/Course-Descriptions/Course-Details?SA="
+        dept_url+=dept_id
+        dept_url+="&funsel=3"
+
+        dept_request = urllib.request.Request(dept_url)
+        dept_response  = urllib.request.urlopen(dept_request)
+
+        #store the result in a string
+        html = dept_response.read().decode("utf-8")
+        #pass it into PyQuery for parsing
+        query = pq(html, parser='html')
+
+        courses = []
+        course_div = query(".media-body")
+
+
+        
+        for div in course_div:
+            courses.append(parseDiv(pq(div), dept_id, dept_dict))
+    #"""
     """
-
-    """dept_id = "AERO+ST"
-    dept_url="https://www.registrar.ucla.edu/Academics/Course-Descriptions/Course-Details?SA="
-    dept_url+=dept_id
-    dept_url+="&funsel=3"
-
-    dept_request = urllib.request.Request(dept_url)
-    dept_response  = urllib.request.urlopen(dept_request)
-
-    #store the result in a string
-    html = dept_response.read().decode("utf-8")
-    #pass it into PyQuery for parsing
-    query = pq(html, parser='html')
-
-    courses = []
-    course_div = query(".media-body")
-
-
-    """
-    #for div in course_div:
-    #    courses.append(parseDiv(pq(div)))
-   
     #test="two courses in FieldI, or course 20 and one course in FieldI"
     test=[]
     test.append("CS 100")
@@ -588,14 +642,23 @@ def main():
     test.append("two courses in FieldI, or course 20 and one course in FieldI")
     test.append("CS 100 foo")
 
+    """
+    """
+    #test="two courses in FieldI, or course 20 and one course in FieldI"
+    test=[]
+    #test.append(("courses 32, 33, 35L", "COM+SCI"))
+    test.append(("courses 10 or 10W, and 20", "COM+SCI"))
     for i in test:
-        print(i)
-        print(parseReq(i))
-
+        print(i[0])
+        print(parseReq(i[0], i[1], dept_dict))
+        print("--------------------")
+    
+    """
+    """
     #print(courses)
 
     #print(response.read().decode("utf-8"))
-
+    """
 
 if __name__ =="__main__":
     main()
