@@ -7,17 +7,17 @@ from pyquery import PyQuery as pq
 
 #class for each course
 class Course:
-        def __init__(self, name="", id="", level="lower", units="", desc="", req=[[]], misc=0):
-            self.id = id
-            self.name = name
-            self.dpt = ""
-            self.level = level
-            self.units = units
-            self.c_type = ""
-            self.sameas = []
-            self.desc = desc
-            self.req = req
-            self.misc = misc
+    def __init__(self, name="", id="", level="lower", units="", desc="", req=[[]], misc=0):
+        self.id = id
+        self.name = name
+        self.dpt = ""
+        self.level = level
+        self.units = units
+        self.c_type = ""
+        self.sameas = []
+        self.desc = desc
+        self.req = req
+        self.misc = misc
 
 
 def parseDiv(html, major="", dept=[]):
@@ -600,11 +600,13 @@ def main():
     dept_dict.append(('EC+ENGR', 'Electrical Engineering'))
     dept_dict.append(('C&EE', 'Civil ENGR'))
     dept_dict.append(('EC+ENGR', 'Electrical ENGR'))
-
+    dept_dict.append(('AERO+ENGR', 'Mechanical and Aerospace ENGR'))
+    dept_dict.append(('CHEM', 'Chemistry'))
+    dept_dict.append(('MAT+SCI', 'Materials Science'))
     #"""
     print("scraping")
-
-    for d in dept:
+    #"""
+    for d in dept[20:23]:
 
         print("scraping " + d[1])
 
@@ -647,7 +649,7 @@ def main():
     #test="two courses in FieldI, or course 20 and one course in FieldI"
     test=[]
     #test.append(("courses 32, 33, 35L", "COM+SCI"))
-    test.append(("courses 10 or 10W, and 20", "COM+SCI"))
+    test.append(("Chemistry 20A, 20B, 20L", "COM+SCI"))
     for i in test:
         print(i[0])
         print(parseReq(i[0], i[1], dept_dict))
