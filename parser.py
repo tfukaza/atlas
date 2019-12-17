@@ -1,106 +1,6 @@
-import urllib.request
-import urllib.parse
-import re
-from pyquery import PyQuery as pq 
-
-
-
-#class for each course
-class Course:
-    def __init__(self, name="", id="", level="lower", units="", desc="", req=[[]], misc=0):
-        self.id = id
-        self.name = name
-        self.dpt = ""
-        self.level = level
-        self.units = units
-        self.c_type = ""
-        self.sameas = []
-        self.desc = desc
-        self.req = req
-        self.misc = misc
-
-
-def parseDiv(html, major="", dept=[]):
-    
-    C = Course()
-
-    query = pq(html, parser='html')
-    title = query("h3").text()
-
-    id_end = title.find(".") #find where course ID ends
-    c_id = title[0:id_end]
-    print(c_id)
-
-    name = title[id_end + 2:]
-    print(name)
-
-    unit_p = query("p").eq(0).text()
-    unit="" 
-    unit_end = unit_p.find(":")
-
-    if unit_p.find("to") != -1:
-        unit2_end = unit_p.find("to")
-        unit = unit_p[unit_end+2:unit2_end-1]
-        unit+=".0"
-        unit+="-"
-        unit+=unit_p[unit2_end+3:]
-        unit+=".0"
-    elif unit_p.find("or") != -1:
-        unit2_end = unit_p.find("or")
-        unit = unit_p[unit_end+2:unit2_end-1]
-        unit+=".0"
-        unit+="/"
-        unit+=unit_p[unit2_end+3:]
-        unit+=".0"
-    else:
-        unit = unit_p[unit_end+2:]
-        unit+=".0"
-    
-    print(unit)
-
-    desc_p = query("p").eq(1).text()
-
-    if len(desc_p) > 0:
-        if desc_p[0] == '(':
-            e = desc_p.find(')')
-            desc_p = desc_p[e:]
-
-        type_end = desc_p.find(".")
-        type_tmp = desc_p[0:type_end]
-
-        c_type = ""
-
-        types = ['Laboratory','Lecture','Seminar','Tutorial']
-        for t in types:
-            if type_tmp.find(t) != -1:
-                c_type = t
-
-        desc_p = desc_p[type_end+1:]
-
-        print(c_type)
-
-        req_begin = desc_p.find("equisites: ")
-
-        if req_begin != -1:
-            req_tmp = desc_p[req_begin + 11:]
-            req_end = req_tmp.find(".")
-            print(parseReq(req_tmp[0:req_end], major, dept))
-            desc_p = desc_p[req_end+1:]
-
-        else:
-            print("no req")
-
-
-    #print(desc_p[:-3])
-
-    print("---------")
-  
-    return C
-
-
 def tokenizeReq(string, dept_dict):
 
-    print("tokenizing")
+    #print("tokenizing")
 
     #l = list(string)
 
@@ -109,7 +9,7 @@ def tokenizeReq(string, dept_dict):
 
     #s = "".join(l)
     s = string
-    print(s)
+    #print(s)
 
     tok = s.split() 
     l = len(tok)
@@ -124,6 +24,16 @@ def tokenizeReq(string, dept_dict):
             i = i + 1
 
     return tok
+
+def cleanID(s):
+        
+    while s[0] == ' ' or s[0] == ',':
+        s = s[1:]
+    
+    while s[-1] == ' ' or s[-1] == ',':
+        s = s[:-1]
+
+    return s
 
 def hasDigit(string):
     for c in string:
@@ -152,12 +62,17 @@ def isField(string):
         return True
     return False
 
+def isDelim(string):
+    if string == "," or string == "and" or string == "or":
+        return True
+    return False
+
 
 def parseReq(html, major="", dict = []):
 
     tok = tokenizeReq(html, dict)
 
-    print(tok)
+    #print(tok)
     result = []
     result.append([])
     res_counter = 0
@@ -266,6 +181,12 @@ def parseReq(html, major="", dict = []):
           
             #if this is a backtrack 
             if rule[0] != -1:
+                #backtrack from name
+                if rule[0] == 6:
+                    stack.pop(0)
+                    stack[0][1] = tokens
+                    stack[0][2] = [1, -1]
+                    continue
                 #...after parsing "course"
                 if rule[0] == 4:
                     # , or [expression]
@@ -315,42 +236,32 @@ def parseReq(html, major="", dict = []):
                  #[number]
                
                 if isWordNum(tokens[0]):
-                    """
-                    #[level] [department] courses
-                    if isLevel(tokens[1]) and isDept(tokens[2]) and tokens[3] == 'courses':
-                        # not in [selection]
-                        if tokens[4] == 'not' and tokens[5] == 'in':
-                            stack[0][0] = "expression"                             #if this succeeds, return to the "expression state"
-                            stack.insert(0, ("selection", tokens[6:]))
-                        #in [selection]
-                        elif tokens[4] == 'in':
-                            stack[0][0] = "expression" 
-                            stack.insert(0, ("selection", tokens[5:]))
-                        else:
-                            print("Syntax Error")
-                            return []
-
-                    # courses in [selection]
-                    elif tokens[1] == 'courses' and tokens[2] == 'in':
-                        stack.insert(0, ("selection", tokens[3:]))
-                    """
+                    #[num] year of [course]
+                    if len(tokens) > 2 and tokens[1] == "year" and tokens[2] == "of":
+                        cur_course=("%term-" + tokens[0] + ":")
+                        stack.insert(0, ["name", tokens[3:], [-1, -1]])
+        
                     #one course in [Field]
-                    if len(tokens) > 2 and (tokens[1] == 'course' or tokens[1] == "courses") and tokens[2] == 'in' and isField(tokens[3]):
-                        eq_class.append(tokens[0] + " in " + tokens[3])
+                    elif len(tokens) > 2 and (tokens[1] == 'course' or tokens[1] == "courses") and tokens[2] == 'in' and isField(tokens[3]):
+                        eq_class.append("%" + tokens[0] + "-" + tokens[3])
                         stack.pop(0)
                         stack[0][1] = tokens[4:]
                         stack[0][2] = [2, -1]
                         continue
                     #one course from [or list]  
                     
-                    elif tokens[1] == 'course' and tokens[2] == 'from':
-                        print("OR list")
+                    elif (tokens[1] == 'course' or tokens[1] == 'courses') and tokens[2] == 'from':
+                        #print("OR list")
+                        if tokens[0] != "one":
+                            eq_class.append("%" + tokens[0] + "-")
                         stack.insert(0, ["or_list", tokens[3:], [-1,-1]])
                         continue
                     else:
                         print("Syntax Error")
                         return []
-                
+                elif tokens[0] == "comparable" and tokens[1] == "knowledge":
+                    cur_course=("%comp" + ":")
+                    stack.insert(0, ["name", tokens[3:], [-1, -1]])
                 else:
                     stack.insert(0, ["course", tokens, [-1, -1]])
                     continue
@@ -361,8 +272,19 @@ def parseReq(html, major="", dict = []):
             #if backtrack
              if rule[0] != -1:
 
-                 #
+                #
                 if size > 1 and tokens[0] == ',' and tokens[1] == 'or':
+                    eq_class.append(cur_course)                         #finalize the equivalent class
+                    #eq_class.append(eq_class)                           #", or" implies that the class so far was optional  
+                    stack.insert(0, ["course", tokens[2:], [-1, -1]])          #recursive
+                    #stack[0][1] = tokens[2:]
+                    #stack[0][2] = [2, -1]
+                    continue
+
+                elif size > 0 and tokens[0] == 'through':
+                    #NOTE
+                    #this is a special case that requires special syntax
+                    eq_class[-1]+="through"   
                     eq_class.append(cur_course)                         #finalize the equivalent class
                     #eq_class.append(eq_class)                           #", or" implies that the class so far was optional  
                     stack.insert(0, ["course", tokens[2:], [-1, -1]])          #recursive
@@ -371,17 +293,18 @@ def parseReq(html, major="", dict = []):
                     continue
                 
                 # or [eq_class]
-                elif size > 1 and tokens[0] == ',':
+                elif size > 0 and tokens[0] == ',':
                     eq_class.append(cur_course)                         #finalize the equivalent class
                     #eq_class.append(eq_class)                           #", or" implies that the class so far was optional  
-                    stack.insert(0, ["course", tokens[1:], [-1, -1]])          #recursive
+                    stack.insert(0, ["course", tokens[1:], [-1, -1]])          #recursive. Note adding or list to stack has the same effect
                     #stack[0][1] = tokens[1:]
                     #stack[0][2] = [2, -1]
                     continue
-                #if above 2 fails, it implies termination of or list
+                #if above fails, it implies termination of or list, record eq class
                 #TODO: use index to be more explicit about where the backtrack is from
                 else:
                     eq_class.append(cur_course)
+                    result[res_counter].append(eq_class.copy())
                     eq_class.clear()
                     stack.pop(0)
                     stack[0][1] = tokens
@@ -396,16 +319,39 @@ def parseReq(html, major="", dict = []):
 
             #if this is a backtrack
             if rule[0] != -1:
-                if tokens[0] == "with":
-                    print("Not supported yet")
-                else:
+                #backtrack from name
+                #possibly not used
+                if rule[0] == 6:
                     stack.pop(0)
                     stack[0][1] = tokens
                     stack[0][2] = [4, -1]
                     continue
+
+                else:
+                    #with grade of
+                    if tokens[0] == "with":
+                        cur_course += ("%grade-" + tokens[4])
+
+                    #(or <course>)
+                    #elif tokens == "(or":
+                    #    cur_course = ["%or", cur_course, tokens[1]]
+                    
+                    else:
+                        stack.pop(0)
+                        stack[0][1] = tokens
+                        stack[0][2] = [4, -1]
+                        continue
             
             else:
-                stack.insert(0, ["course_id", tokens, [-1, -1]])
+                # num year of course
+                #This is not called
+                #TODO remove
+                if isWordNum(tokens[0]) and len(tokens) > 2 and tokens[1] == "year" and tokens == "of":
+                    stack.insert(0, ["name", tokens[3:], [-1, -1]])
+                else: 
+                    stack.insert(0, ["course_id", tokens, [-1, -1]])
+                
+                continue
 
         if state  == "course_id":
             if (tokens[0] == "course" or tokens[0] == "courses") and hasDigit(tokens[1]):
@@ -432,235 +378,59 @@ def parseReq(html, major="", dict = []):
                 print("Syntax Error")
                 return []
 
-    return result
-
-"""
-def parseExp(state, tokens):
-
-    result = []
-
-    #[expression] = 
-    if state == "expression":
-
-        result = parseExp("eq_class", tokens)
-        # [eq_class] [subexpression]
-        if len(result) != 0
-
-
-
-    return result
-
-"""
-"""
-def parseReq(html, major=""):
-
-    token = html.split()
-    #print(token)
-    result = []
-
-    i = 0
-    l = len(token)
-    r_tmp = [] #stores the current req
-    s_tmp = "" #builds a name
-    m_tmp = "" #The major current being parsed
-    pre_m = False #If the previous token was the name of a major
-
-    state = "idle" #state of the parser
-
-    while i < l:
-
-        #handle expressions '[number] course from [list of courses or field]'
-       
-        #if the token is 'course', the major name should be the current major
-        if token[i] == "course":
-            i = i + 1
-            m_tmp = major
-            continue
-          
-        
-        #if the token is "courses"
-        if token[i] == "courses":
-            i = i + 1
-            m_tmp = major
-            continue
-
-        #if the token is "choose one (course) from"
-        if token[i] == "one":
-            if (i + 1) < l and token[i + 1] == "course":
-                state = "one from"
-                i = i + 3
-                continue
-            else:
-                i = i + 1
-                continue
-
-        #if we are in a OR operation with token "one from"
-        if token[i] == "or":
-            if state == "one from":                     #if the "or" is the last part of a "choose one from" substring
-                state = "last or"                       #set state to indicate the next class will be the last in an OR substring
-            else:
-                state = "or"                            #otherwise indicate this is an OR substring
-            i = i + 1
-            continue
-
-        #if entering AND substring, and ensure and is not part of a major name
-        if token[i] == "and" and pre_m == False:
-            state = "idle"  
-            i = i + 1
-        else:
-
-            if hasdigit(token[i]) == True:              #If this is a name of a class 
-                pre_m = False
-                if state == "last or" or (state == "or" and (token[i][-1] == ',' or i == l - 1)):#if this is the end of a OR substring
-                    r_tmp.append(cleanID(m_tmp + " " + token[i]))      #add the next token as a potential required class
-                    result.append(r_tmp.copy())
-                    r_tmp.clear()                       #clear the tmp list
-                    state = "idle"                      #reset state to default
-
-                else:                                   #state is "idle"
-                    if state == "idle" and len(r_tmp) > 0:#if there is a course that was already in r_tmp
-                        result.append([r_tmp[0]])
-                        r_tmp = r_tmp[1:]
-                    
-                    r_tmp.append(cleanID(m_tmp + " " + token[i]))  
-                    #add this as a potential requirement
-                   
+        if state == "name":
             
-            else:                                       #The only other possibility is that this token is part of the name of a major
-                if pre_m == False:                      
-                    m_tmp = token[i]
-                    pre_m = True
-                else:
-                    m_tmp = m_tmp + " " + token[i] 
-                
-            i = i + 1
+            while len(tokens) > 0 and isDelim(tokens[0]) == False:
+                cur_course += (tokens[0] + " ")
+                tokens = tokens[1:]
+            
+            stack.pop(0)
+            stack[0][1] = tokens
+            stack[0][2] = [6, -1]
 
-
-    if len(r_tmp) > 0:
-        result.append(r_tmp)
-
+    #print(result)
     return result
-"""
 
-def cleanID(s):
-        
-    while s[0] == ' ' or s[0] == ',':
-        s = s[1:]
-    
-    while s[-1] == ' ' or s[-1] == ',':
-        s = s[:-1]
+#convert list to JSON
+#note that True mans OR
+def list2Json(list, stmt=True):
 
+    s=""
+    counter = 0
+    #if the type of list content is a string, terminate and return it
+    if isinstance(list, str):
+        s+=("'course':" + "'" + list + "'")
+        return s
+
+    #if there is only 1 req in an OR, skip to next level
+    if stmt and len(list) == 1:
+        s+=list2Json(list[0], False)
+        return s
+
+    #list of options
+    if stmt:
+        for i in range(0,len(list)):
+            s+=("'opt" + str(counter) + "':{")
+            s+=list2Json(list[i],False)
+            s+="}"
+
+            counter = counter + 1
+
+            if counter < len(list):
+                s+=","
+          
+    #list of requirements
+    else:
+        for i in range(0,len(list)):
+            s+=("'req" + str(counter) + "':{")
+            s+=list2Json(list[i],True)
+            s+="}"
+            counter = counter + 1
+
+            if counter < len(list):
+                s+=","
+            
     return s
 
-def main():
-    
-
-    print("scraping department list...")
-
-    #The main course description page
-    url="https://www.registrar.ucla.edu/Academics/Course-Descriptions"
-    #request the webpage
-    request = urllib.request.Request(url)
-    response  = urllib.request.urlopen(request)
-
-    #store the result in a string
-    html = response.read().decode()
-    #pass it into PyQuery for parsing
-    query = pq(html, parser='html')
-    dept = []
-    i = 0
-
-    dept_li = query("a[href *= '/Academics/Course-Descriptions/Course-Details?SA=']")
-
-    for li in dept_li:
-
-        #get the href of the li 
-        href = pq(li).attr('href')
-        #get the name contained in the li
-        name = pq(li).text()
-        
-
-        id_begin = href.find("?SA=")
-        id_end = href.find("&")
-        id = href[id_begin + 4:id_end]
-        id = id.replace('%26','&')
-
-        dept.append((id, name)) #add the dept id and name tuple to list
-
-    #print(dept)
-
-    dept_dict = dept.copy()
-
-    for m in dept_dict:
-       print(m)
-
-    print("adding manual naming")
-
-    dept_dict.append(('C&EE', 'Civil Engineering'))
-    dept_dict.append(('EC+ENGR', 'Electrical Engineering'))
-    dept_dict.append(('C&EE', 'Civil ENGR'))
-    dept_dict.append(('EC+ENGR', 'Electrical ENGR'))
-    dept_dict.append(('AERO+ENGR', 'Mechanical and Aerospace ENGR'))
-    dept_dict.append(('CHEM', 'Chemistry'))
-    dept_dict.append(('MAT+SCI', 'Materials Science'))
-    #"""
-    print("scraping")
-    #"""
-    for d in dept[20:23]:
-
-        print("scraping " + d[1])
-
-        dept_id = d[0]
-        dept_url="https://www.registrar.ucla.edu/Academics/Course-Descriptions/Course-Details?SA="
-        dept_url+=dept_id
-        dept_url+="&funsel=3"
-
-        dept_request = urllib.request.Request(dept_url)
-        dept_response  = urllib.request.urlopen(dept_request)
-
-        #store the result in a string
-        html = dept_response.read().decode("utf-8")
-        #pass it into PyQuery for parsing
-        query = pq(html, parser='html')
-
-        courses = []
-        course_div = query(".media-body")
 
 
-        
-        for div in course_div:
-            courses.append(parseDiv(pq(div), dept_id, dept_dict))
-    #"""
-    """
-    #test="two courses in FieldI, or course 20 and one course in FieldI"
-    test=[]
-    test.append("CS 100")
-    test.append("CS 100 or CS 200")
-    test.append("CS 100 and CS 200")
-    test.append("one course from CS 100, CS 200, CS 300, or CS 400")
-    test.append("CS 100 or CS 200 or CS 300 or CS 400")
-    test.append("CS 100 and CS 101, or CS 400")
-    test.append("two courses in FieldI")
-    test.append("two courses in FieldI, or course 20 and one course in FieldI")
-    test.append("CS 100 foo")
-
-    """
-    """
-    #test="two courses in FieldI, or course 20 and one course in FieldI"
-    test=[]
-    #test.append(("courses 32, 33, 35L", "COM+SCI"))
-    test.append(("Chemistry 20A, 20B, 20L", "COM+SCI"))
-    for i in test:
-        print(i[0])
-        print(parseReq(i[0], i[1], dept_dict))
-        print("--------------------")
-    
-    """
-    """
-    #print(courses)
-
-    #print(response.read().decode("utf-8"))
-    """
-
-if __name__ =="__main__":
-    main()
