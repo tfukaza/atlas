@@ -1,3 +1,5 @@
+import json
+
 def tokenizeReq(string, dept_dict):
 
     #print("tokenizing")
@@ -74,11 +76,13 @@ def parseReq(html, major="", dict = []):
 
     #print(tok)
     result = []
-    result.append([])
-    res_counter = 0
+    #result.append([])
+    #res_counter = 0
     expression=[]
-    eq_class = []
-    cur_course = ""
+    #eq_class = []
+    cur=""
+    eq=[[]]
+    #cur_course = ""
     cur_dept = ""
 
     i = 0
@@ -104,16 +108,23 @@ def parseReq(html, major="", dict = []):
         rule = stack[0][2]
         size  = len(tokens)
         #ret = stack[0][3]
-        #print(state)
-        #print(tokens)
-        #print(rule)
-        #print("-------------")
+        print(state)
+        print(tokens)
+        print(rule)
+        print(eq)
+        print("-------------")
 
         #if there are no tokens, it means the entire string was parsed
         if len(tokens) == 0:
-            if cur_course != "":
-                eq_class.append(cur_course)                         #finalize the equivalent class
-            result[res_counter].append(eq_class.copy())                        #finalize the result
+            if cur != "":
+                eq.append(cur)                         #finalize the equivalent class
+            # if there is a single list in the result list, it means it is either a AND or OR that needs to have the remaining 
+            # eq_class coupled to it. 
+            if len(result) == 1 and isinstance(result[0], list):
+                result[0].append(eq.copy())                        #finalize the result
+            # if 
+            else:
+                result.append(eq.copy())     
             break
 
         #[expression]
@@ -126,42 +137,82 @@ def parseReq(html, major="", dict = []):
             if rule[0] != -1:
                 # , and [expression]
                 if size > 1 and tokens[0] == ',' and tokens[1] == 'and':
-                    eq_class.append(cur_course)                         #finalize the equivalent class
-                    cur_course = ""
-                    result[res_counter].append(eq_class.copy())                           #add the eq_class accumulated so far, as ', and' implies that eq_class was another requirement
-                    eq_class.clear()
+                    #eq_class.append(cur_course)                         #finalize the equivalent class
+                    #eq.append(cur)
+                    #cur = ""
+                    #cur_course = ""
+                    #result[res_counter].append(eq_class.copy())                           #add the eq_class accumulated so far, as ', and' implies that eq_class was another requirement
+                    while len(eq) > 1:
+                        tmp = eq[-1]
+                        eq.pop(-1)
+                        eq[-1].append(tmp.copy())
+                    
+                    eq = [["%and", eq.copy()]]
+                    #eq.clear()
+
                     stack.insert(0, ["expression", tokens[2:], [-1, -1]])          #recursive
                     continue
                 
                 # , [expression]
                 elif size > 1 and tokens[0] == ',' and tokens[1] == 'or':
-                    if cur_course != "":
-                        eq_class.append(cur_course)                         #finalize the equivalent class
-                    cur_course = ""
-                    result[res_counter].append(eq_class.copy())                           #"," is another way to say "and". We can say for sure, since ", or" would already have been handled above
-                    eq_class.clear()
+                    #if cur != "":
+                    #   eq.append(cur)                         #finalize the equivalent class
+                    #cur = ""
+                    #result[res_counter].append(eq_class.copy())                           #"," is another way to say "and". We can say for sure, since ", or" would already have been handled above
+                    #result = ["%or-one", eq.copy()]
+                    #eq.clear()
+                    while len(eq) > 1:
+                        tmp = eq[-1]
+                        eq.pop(-1)
+                        eq[-1].append(tmp.copy())
 
-                    result.append([])
-                    res_counter = res_counter + 1
+                    eq = [["%or", eq.copy()]]
+                    #if len(result) > 0 and result[0] == "%or":
+                    #    result.append(eq.copy())   
+                    #else:
+                    #    result = ["%or", eq.copy()] 
+                    #eq.clear()
+                    #result.append([])
+                    #res_counter = res_counter + 1
                     stack.insert(0, ["expression", tokens[2:], [-1, -1]])          #recursive
                     continue
                 
                 # , [expression]
                 elif size > 1 and tokens[0] == ',' and tokens[1] != "or":
-                    eq_class.append(cur_course)                         #finalize the equivalent class
-                    cur_course = ""
-                    result[res_counter].append(eq_class.copy())                           #"," is another way to say "and". We can say for sure, since ", or" would already have been handled above
-                    eq_class.clear()
+                    #eq_class.append(cur_course)                         #finalize the equivalent class
+                    #cur_course = ""
+                    #result[res_counter].append(eq_class.copy())                           #"," is another way to say "and". We can say for sure, since ", or" would already have been handled above
+                    if len(eq) > 0 and eq[-1][0] == "%and":
+                        if cur != "":
+                            eq[-1].append(cur)   
+                    else:
+                        #tmp = eq[-1]
+                        #eq.pop(-1)
+                        #if isinstance(eq[0],str) and len(eq) == 1:
+                        #    eq = ["%and", eq[0]] 
+                        #else:
+                        eq = [["%and", eq.copy()]]
                    
                     stack.insert(0, ["expression", tokens[1:], [-1, -1]])          #recursive
                     continue
                 
                 # and [eq_class]
                 elif tokens[0] == 'and':
-                    eq_class.append(cur_course)                         #finalize the equivalent class
-                    cur_course = ""
-                    result[res_counter].append(eq_class.copy())                           #"," is another way to say "and". We can say for sure, since ", or" would already have been handled above
-                    eq_class.clear()
+                    #eq_class.append(cur_course)                         #finalize the equivalent class
+                    #cur_course = ""
+
+                    if len(eq) > 0 and eq[-1][0] == "%and":
+                        if cur != "":
+                            eq[-1].append(cur)  
+                    else:
+                        #tmp = eq[-1]
+                        #eq.pop(-1)
+                        #if isinstance(eq[0],str) and len(eq) == 1:
+                        #    eq = ["%and", eq[0]] 
+                        #else:
+                        eq = [["%and", eq.copy()]]
+                    
+                    #eq.clear()
                     stack.insert(0, ["expression", tokens[1:], [-1, -1]])          #recursive
                     continue
                 
@@ -182,13 +233,16 @@ def parseReq(html, major="", dict = []):
             #if this is a backtrack 
             if rule[0] != -1:
                 #backtrack from name
+               
                 if rule[0] == 6:
+                    eq[-1].append(cur)      #add the last course parsed 
+                    cur = ""    
                     stack.pop(0)
                     stack[0][1] = tokens
                     stack[0][2] = [1, -1]
                     continue
                 #...after parsing "course"
-                if rule[0] == 4:
+                elif rule[0] == 4:
                     # , or [expression]
                     """if size > 1 and tokens[0] == ',' and tokens[1] == 'or':
                         eq_class.append(cur_course)                         #finalize the equivalent class
@@ -202,31 +256,60 @@ def parseReq(html, major="", dict = []):
                     """
                     # or [eq_class]
                     if tokens[0] == 'or':
-                        eq_class.append(cur_course)                         #finalize the equivalent class
+                       
+                        if len(eq) > 0 and eq[-1][0].find("%or") != -1:
+                            if cur != "":
+                                eq.append(cur)
+                            cur=""
+                            #print("i")   
+                        else:
+                            eq.append(["%or-one", cur]) 
+                            cur = ""
                         #eq_class.append(eq_class)                           #", or" implies that the class so far was optional  
                         stack.insert(0, ["eq_class", tokens[1:], [-1, -1]])          #recursive
                         continue
                     
-                  
                     #else, we are done with this equivalence class
                     else:
+                        #eq.append(cur)      #add this eq class
+                        tmp = eq[-1]
+                        eq.pop(-1)
+                        eq[-1].append(tmp.copy())
+
+                        cur = ""    
                         stack.pop(0)
                         stack[0][1] = tokens
                         stack[0][2] = [1, -1]
                         continue
                 #..after parsing "or_list"
-                elif rule[0] == 2:
-                    #it means the or list finished parsing
+                
+                else:
+                    eq[-1].append(cur)      #add the last course parsed 
+
+                    tmp = eq[-1]
+                    eq.pop(-1)
+                    eq[-1].append(tmp.copy())
+
+                    cur = ""   
                     stack.pop(0)
                     stack[0][1] = tokens
                     stack[0][2] = [1, -1]
                     continue
+                """elif rule[0] == 2:
+                #it means the or list finished parsing
+                eq.append(cur)      #add the last course parsed 
 
-                else:
-                    stack.pop(0)
-                    stack[0][1] = tokens
-                    stack[0][2] = [1, -1]  
+                #eq.append(cur)     #add this eq class
+                tmp = eq[-1]
+                eq.pop(-1)
+                eq[-1].append(tmp.copy())
 
+                cur = ""   
+                stack.pop(0)
+                stack[0][1] = tokens
+                stack[0][2] = [1, -1]
+                continue
+                """
 
 
             
@@ -238,12 +321,13 @@ def parseReq(html, major="", dict = []):
                 if isWordNum(tokens[0]):
                     #[num] year of [course]
                     if len(tokens) > 2 and tokens[1] == "year" and tokens[2] == "of":
-                        cur_course=("%term-" + tokens[0] + ":")
+                        cur=("%term-" + tokens[0] + ":")
                         stack.insert(0, ["name", tokens[3:], [-1, -1]])
         
                     #one course in [Field]
                     elif len(tokens) > 2 and (tokens[1] == 'course' or tokens[1] == "courses") and tokens[2] == 'in' and isField(tokens[3]):
-                        eq_class.append("%" + tokens[0] + "-" + tokens[3])
+                        eq[-1].append("%field-" + tokens[0] + ":" + tokens[3])
+                        
                         stack.pop(0)
                         stack[0][1] = tokens[4:]
                         stack[0][2] = [2, -1]
@@ -252,15 +336,18 @@ def parseReq(html, major="", dict = []):
                     
                     elif (tokens[1] == 'course' or tokens[1] == 'courses') and tokens[2] == 'from':
                         #print("OR list")
-                        if tokens[0] != "one":
-                            eq_class.append("%" + tokens[0] + "-")
+                        #if len(eq) > 0:
+                        #    result.append(eq.copy())
+                        
+                        eq.append([("%or-" + tokens[0])])
+                        #eq=[("%or-" + tokens[0])]
                         stack.insert(0, ["or_list", tokens[3:], [-1,-1]])
                         continue
                     else:
                         print("Syntax Error")
                         return []
                 elif tokens[0] == "comparable" and tokens[1] == "knowledge":
-                    cur_course=("%comp" + ":")
+                    cur=("%comp" + ":")
                     stack.insert(0, ["name", tokens[3:], [-1, -1]])
                 else:
                     stack.insert(0, ["course", tokens, [-1, -1]])
@@ -273,8 +360,8 @@ def parseReq(html, major="", dict = []):
              if rule[0] != -1:
 
                 #
-                if size > 1 and tokens[0] == ',' and tokens[1] == 'or':
-                    eq_class.append(cur_course)                         #finalize the equivalent class
+                if size > 1 and tokens[0] == ',' and (tokens[1] == 'or' or tokens[1] == "and"):
+                    #eq.append(cur)                         #finalize the equivalent class
                     #eq_class.append(eq_class)                           #", or" implies that the class so far was optional  
                     stack.insert(0, ["course", tokens[2:], [-1, -1]])          #recursive
                     #stack[0][1] = tokens[2:]
@@ -282,19 +369,17 @@ def parseReq(html, major="", dict = []):
                     continue
 
                 elif size > 0 and tokens[0] == 'through':
-                    #NOTE
-                    #this is a special case that requires special syntax
-                    eq_class[-1]+="through"   
-                    eq_class.append(cur_course)                         #finalize the equivalent class
-                    #eq_class.append(eq_class)                           #", or" implies that the class so far was optional  
-                    stack.insert(0, ["course", tokens[2:], [-1, -1]])          #recursive
+                    eq[-1].append("%through")
+                    cur = ""
+                                        
+                    stack.insert(0, ["course", tokens[1:], [-1, -1]])          #recursive
                     #stack[0][1] = tokens[2:]
                     #stack[0][2] = [2, -1]
                     continue
                 
                 # or [eq_class]
                 elif size > 0 and tokens[0] == ',':
-                    eq_class.append(cur_course)                         #finalize the equivalent class
+                    #eq.append(cur)                         #finalize the equivalent class
                     #eq_class.append(eq_class)                           #", or" implies that the class so far was optional  
                     stack.insert(0, ["course", tokens[1:], [-1, -1]])          #recursive. Note adding or list to stack has the same effect
                     #stack[0][1] = tokens[1:]
@@ -303,9 +388,10 @@ def parseReq(html, major="", dict = []):
                 #if above fails, it implies termination of or list, record eq class
                 #TODO: use index to be more explicit about where the backtrack is from
                 else:
-                    eq_class.append(cur_course)
-                    result[res_counter].append(eq_class.copy())
-                    eq_class.clear()
+                    eq[-1].append(cur)
+                    cur = ""
+                    #result.append(eq.copy())
+                    #eq.clear()
                     stack.pop(0)
                     stack[0][1] = tokens
                     stack[0][2] = [2, -1]
@@ -322,6 +408,7 @@ def parseReq(html, major="", dict = []):
                 #backtrack from name
                 #possibly not used
                 if rule[0] == 6:
+                    #eq.append(cur)
                     stack.pop(0)
                     stack[0][1] = tokens
                     stack[0][2] = [4, -1]
@@ -330,13 +417,22 @@ def parseReq(html, major="", dict = []):
                 else:
                     #with grade of
                     if tokens[0] == "with":
-                        cur_course += ("%grade-" + tokens[4])
+                        cur += ("%grade-" + tokens[4])
 
                     #(or <course>)
-                    #elif tokens == "(or":
-                    #    cur_course = ["%or", cur_course, tokens[1]]
+                    elif tokens[0] == "(or":
+                        cur = ["%or-one", cur, ("tmp_dept" + tokens[1])]
+                        eq[-1].append(cur)
+                        cur = ""
+                        stack.pop(0)
+                        stack[0][1] = tokens[2:]
+                        stack[0][2] = [4, -1]
+                        continue
+
                     
                     else:
+                        eq[-1].append(cur)
+                        cur = ""
                         stack.pop(0)
                         stack[0][1] = tokens
                         stack[0][2] = [4, -1]
@@ -356,20 +452,23 @@ def parseReq(html, major="", dict = []):
         if state  == "course_id":
             if (tokens[0] == "course" or tokens[0] == "courses") and hasDigit(tokens[1]):
                 cur_dept = major
-                cur_course = cur_dept + " " + tokens[1]
+                cur = cur_dept + " " + tokens[1]
                 stack.pop(0)
                 stack[0][1] = tokens[2:]
                 stack[0][2] = [5, -1]
                 continue
             elif isDept(tokens[0], dict) and hasDigit(tokens[1]):
                 cur_dept = tokens[0]
-                cur_course =  tokens[0] + " " + tokens[1]
+                cur =  tokens[0] + " " + tokens[1]
                 stack.pop(0)
                 stack[0][1] = tokens[2:]
                 stack[0][2] = [5, -1]
                 continue
             elif hasDigit(tokens[0]):
-                cur_course = cur_dept + " " + tokens[0]
+                if cur_dept=="":
+                    cur_dept = major
+                
+                cur = cur_dept + " " + tokens[0]
                 stack.pop(0)
                 stack[0][1] = tokens[1:]
                 stack[0][2] = [5, -1]
@@ -381,9 +480,10 @@ def parseReq(html, major="", dict = []):
         if state == "name":
             
             while len(tokens) > 0 and isDelim(tokens[0]) == False:
-                cur_course += (tokens[0] + " ")
+                cur += (tokens[0] + " ")
                 tokens = tokens[1:]
-            
+            #eq.append(cur)
+            #eq.clear()
             stack.pop(0)
             stack[0][1] = tokens
             stack[0][2] = [6, -1]
@@ -391,46 +491,52 @@ def parseReq(html, major="", dict = []):
     #print(result)
     return result
 
-#convert list to JSON
-#note that True mans OR
-def list2Json(list, stmt=True):
 
-    s=""
-    counter = 0
+def formatList(list):
+
+    if list == []:
+        return "???"
+
+    s={}
+
     #if the type of list content is a string, terminate and return it
     if isinstance(list, str):
-        s+=("'course':" + "'" + list + "'")
+        return list
+    
+    #if there is only 1 req, skip to next level
+    if len(list) == 1:
+        s=formatList(list[0])
         return s
 
-    #if there is only 1 req in an OR, skip to next level
-    if stmt and len(list) == 1:
-        s+=list2Json(list[0], False)
-        return s
 
-    #list of options
-    if stmt:
-        for i in range(0,len(list)):
-            s+=("'opt" + str(counter) + "':{")
-            s+=list2Json(list[i],False)
-            s+="}"
+    if list[0] == "%and":
+        tmp_list=[]
+        
+        for i in list[1:]:
+            tmp_list.append(formatList(i))
 
-            counter = counter + 1
+        s["req"] = tmp_list
+        
 
-            if counter < len(list):
-                s+=","
-          
-    #list of requirements
-    else:
-        for i in range(0,len(list)):
-            s+=("'req" + str(counter) + "':{")
-            s+=list2Json(list[i],True)
-            s+="}"
-            counter = counter + 1
+    elif list[0].find("%or") != -1:
 
-            if counter < len(list):
-                s+=","
+        tmp_list = {}
+        tmp_list["num"] = list[0][4:]
+        options = []
+        
+        for i in list[1:]:
+            options.append(formatList(i))
             
+        tmp_list["list"] = options
+
+        s["opt"] = tmp_list
+    
     return s
+
+
+
+
+
 
 
 

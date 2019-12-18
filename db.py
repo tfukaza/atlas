@@ -1,4 +1,5 @@
 import psycopg2
+import json
 
 f = None
 usr = ""
@@ -56,21 +57,51 @@ def init_db():
     cursor.execute("""
     CREATE TABLE "courses"
     (
-        "course_id"     char(50),
-        "course_dept"   char(50),
+        "dept"          char(50),
+        "course_num"    char(50),
         "course_title"  char(50),
+        "course_unit"   char(50),
+        "course_type"   char(50),
         "course_req"    json
     );
 
-    CREATE TABLE "slots"
+    CREATE TABLE "lectures"
+    (
+        "dept"          char(50),
+        "course_num"    char(50),
+        "course_id"     char(50),
+        "term"          char(50),     
+        "lec_name"      char(50),
+        "lec_status"    char(50),
+        "lec_capacity"  json,
+        "lec_w_status"  char(50),
+        "lec_w_capacity"json,
+        "lec_day"       char(50),
+        "lec_time_s"    char(50),
+        "lec_time_e"    char(50),
+        "lec_location"  char(50),
+        "lec_inst"      char(50)
+
+    );
+
+    CREATE TABLE "discussions"
     (
         "course_id"     char(50),
         "term"          char(50),     
-        "lecture"       char(50),
-        "capacity"      char(50)
+        "dis_name"      char(50),
+        "dis_status"    char(50),
+        "dis_capacity"  json,
+        "dis_w_status"  char(50),
+        "dis_w_capacity"json,
+        "dis_day"       char(50),
+        "dis_time_s"    char(50),
+        "dis_time_e"    char(50),
+        "dis_location"  char(50),
+        "dis_inst"      char(50)
     );
     
     """)
+    connection.commit()
 
 def execute_db(q):
 
@@ -87,3 +118,17 @@ def close_connection():
         connection.close()
     else:
         print("")
+
+
+#given a class info formatted as a list (in JSON style), adds it to the db
+def addCourse(course):
+
+    command = """INSERT INTO courses"""
+    command+="VALUES ("
+    command+=course["dept"] + ", "
+    command+=course["course_title"] + ", "
+    command+=course["course_unit"] + ", "
+    command+=course["course_type"] + ", "
+    command+=json.dumps(course["course_req"]) + ");"
+
+    execute_db(command)
