@@ -57,53 +57,56 @@ def init_db():
     cursor.execute("""
     CREATE TABLE "courses"
     (
-        "dept"          char(50),
-        "course_num"    char(50),
-        "course_title"  char(50),
-        "course_unit"   char(50),
-        "course_type"   char(50),
-        "course_req"    json
+        "dept"          char(10),
+        "course_num"    char(5),
+        "course_title"  char(100),
+        "course_unit"   char(10),
+        "course_type"   char(15),
+        "course_req"    json,
+        "course_grade"  char(5),
+        "course_desc"   char(1000)
     );
 
     CREATE TABLE "lectures"
     (
-        "dept"          char(50),
-        "course_num"    char(50),
-        "course_id"     char(50),
-        "term"          char(50),     
-        "lec_name"      char(50),
-        "lec_status"    char(50),
+        "dept"          char(10),
+        "course_num"    char(16),
+        "course_id"     char(9),
+        "term"          char(4),     
+        "lec_name"      char(16),
+        "lec_status"    char(32),
         "lec_capacity"  json,
-        "lec_w_status"  char(50),
+        "lec_w_status"  char(32),
         "lec_w_capacity"json,
-        "lec_day"       char(50),
-        "lec_time_s"    char(50),
-        "lec_time_e"    char(50),
-        "lec_location"  char(50),
-        "lec_inst"      char(50)
+        "lec_day"       char(16),
+        "lec_time_s"    char(16),
+        "lec_time_e"    char(16),
+        "lec_location"  char(64),
+        "lec_inst"      char(64)
 
     );
 
     CREATE TABLE "discussions"
     (
-        "course_id"     char(50),
-        "term"          char(50),     
-        "dis_name"      char(50),
-        "dis_status"    char(50),
+        "lec_id"        char(9),
+        "course_id"     char(9),
+        "term"          char(4),     
+        "dis_name"      char(16),
+        "dis_status"    char(32),
         "dis_capacity"  json,
-        "dis_w_status"  char(50),
+        "dis_w_status"  char(32),
         "dis_w_capacity"json,
-        "dis_day"       char(50),
-        "dis_time_s"    char(50),
-        "dis_time_e"    char(50),
-        "dis_location"  char(50),
-        "dis_inst"      char(50)
+        "dis_day"       char(8),
+        "dis_time_s"    char(16),
+        "dis_time_e"    char(16),
+        "dis_location"  char(64),
+        "dis_inst"      char(64)
     );
     
     """)
     connection.commit()
 
-def execute_db(q):
+def get_db(q):
 
     cursor.execute(q)
     result = cursor.fetchall()
@@ -119,16 +122,128 @@ def close_connection():
     else:
         print("")
 
+def delete_db():
+    cursor.execute("""
+    DROP TABLE courses;
+    DROP TABLE lectures;
+    DROP TABLE discussions;
+    """)
+    connection.commit()
 
-#given a class info formatted as a list (in JSON style), adds it to the db
-def addCourse(course):
 
-    command = """INSERT INTO courses"""
-    command+="VALUES ("
-    command+=course["dept"] + ", "
-    command+=course["course_title"] + ", "
-    command+=course["course_unit"] + ", "
-    command+=course["course_type"] + ", "
-    command+=json.dumps(course["course_req"]) + ");"
+# given a class info formatted as a list (in JSON style), adds it to the db
+# if course does not exist, it will add it
+def updateCourse(course):
 
-    execute_db(command)
+    #check if course exists in db
+    chk = "SELECT * FROM courses WHERE dept='" + course["dept"] + "' AND course_num='" + course["course_num"] + "';"
+    cursor.execute(chk)
+    result = cursor.fetchall()
+
+    command = ""
+
+    #if course does not exist yet, add it
+    if len(result) == 0:
+        command = "INSERT INTO courses "
+        command+="VALUES ("
+        command+="'" + course["dept"] + "', "
+        command+="'" +course["course_num"] + "', "
+        command+="'" +course["course_title"] + "', "
+        command+="'" +course["course_unit"] + "', "
+        command+="'" +course["course_type"] + "', "
+        command+="'" +json.dumps(course["course_req"]) + "', "
+        command+="'" +course["course_grade"] + "', "
+        command+="'" +course["course_desc"] + "');"
+
+    # if course exist, update it
+    else:
+        command = "UPDATE courses"
+        command+= "SET"
+        command+= "course_num = '" + course["course_num"] + "', "
+        command+= "course_title = '" + course["course_title"] + "', "
+        command+= "course_unit = '" + course["course_unit"] + "', "
+        command+= "course_type='" + course["course_type"] + "', "
+        command+= "course_req='" + json.dumps(course["course_req"]) + "', "
+        command+= "course_grade='" + course["course_grade"] + "', "
+        command+= "course_desc='" + course["course_desc"] + "'" 
+        command+= "WHERE dept='" + course["dept"] + "' AND course_num='" + course["course_num"] + "';"
+
+    cursor.execute(command)
+    connection.commit()
+
+# Given a course_id and term, add it to the lecture database
+# If it already exists, ignore
+
+def addLecId(dept, num, id, term):
+
+    result = get_db("SELECT * FROM lectures WHERE course_id='" + id + "' AND term = '" + term + "';")
+
+    if len(result) == 0:
+        command = "INSERT INTO lectures (dept, course_num, course_id, term)"
+        command+="VALUES ("
+        command+="'" + dept + "', "
+        command+="'" + num + "', "
+        command+="'" + id + "', "
+        command+="'" + term + "'); "
+        cursor.execute(command)
+        connection.commit()
+
+# Given a course_id and term, add it to the lecture database
+# If it already exists, ignore
+
+def addDisId(lec_id, id, term):
+
+    result = get_db("SELECT * FROM discussions WHERE course_id='" + id + "' AND term = '" + term + "';")
+
+    if len(result) == 0:
+        command = "INSERT INTO discussions (lec_id, course_id, term)"
+        command+="VALUES ("
+        command+="'" + lec_id + "', "
+        command+="'" + id + "', "
+        command+="'" + term + "'); "
+        cursor.execute(command)
+        connection.commit()
+
+# update a lecture given id and term
+# This function assumes the record already exists
+
+def updateLec(id, term, lec):
+
+    command = "UPDATE lectures "
+    command+= "SET "
+    command+= "lec_name = '" + lec["sect"] + "', "
+    command+= "lec_status = '" + lec["enrollment"]["status"] + "', "
+    command+= "lec_capacity = '" + json.dumps(lec["enrollment"]) + "', "
+    command+= "lec_w_status ='" + lec["enrollment"]["waitlist"]["status"] + "', "
+    command+= "lec_w_capacity ='" + json.dumps(lec["enrollment"]["waitlist"]) + "', "
+    command+= "lec_day='" + lec["days"] + "', "
+    command+= "lec_time_s='" + lec["time"]["start"] + "',"
+    command+= "lec_time_e='" + lec["time"]["end"] + "'," 
+    command+= "lec_location='" + lec["location"] + "'," 
+    command+= "lec_inst='" + lec["instructor"] + "'"  
+    command+= "WHERE course_id='" + id + "' AND term='" +term + "';"
+
+    cursor.execute(command)
+    connection.commit()
+
+# update a lecture given id and term
+# This function assumes the record already exists
+
+def updateDis(id, term, lec):
+
+    command = "UPDATE discussions "
+    command+= "SET "
+    command+= "dis_name = '" + lec["sect"] + "', "
+    command+= "dis_status = '" + lec["enrollment"]["status"] + "', "
+    command+= "dis_capacity = '" + json.dumps(lec["enrollment"]) + "', "
+    command+= "dis_w_status ='" + lec["enrollment"]["waitlist"]["status"] + "', "
+    command+= "dis_w_capacity ='" + json.dumps(lec["enrollment"]["waitlist"]) + "', "
+    command+= "dis_day='" + lec["days"] + "', "
+    command+= "dis_time_s='" + lec["time"]["start"] + "',"
+    command+= "dis_time_e='" + lec["time"]["end"] + "'," 
+    command+= "dis_location='" + lec["location"] + "'," 
+    command+= "dis_inst='" + lec["instructor"] + "'"  
+    command+= "WHERE course_id='" + id + "' AND term='" +term + "';"
+
+    cursor.execute(command)
+    connection.commit()
