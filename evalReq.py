@@ -35,6 +35,25 @@ class Agent:
     def update(self):
         return self.upd(self)
 
+# Root agents are agents that have customized functions to evaluate major progress
+# Unlike leaf agents, which operate on course, root agents operate on leaf agents
+
+class RootAgent:
+    def __init__(self, desc, agents, s, e, upd):
+        self.agents = agents          # list of leaf agents
+        self.s = s
+        self.e = e
+
+        self.done = False       # if req is met or not
+        self.upd = upd          # function to update status
+        self.desc = desc
+
+    def evaluate(self, c):
+        return self.eval(self, c)
+
+    def update(self):
+        return self.upd(self)
+
 # Used by nonleaf agents to alert caller that this is not a leaf, ie 
 # cannot evaluate a class
 def notLeaf(self, c):
@@ -45,19 +64,22 @@ def notLeaf(self, c):
 # If yes, removes the requirement from req, updates stats, and returns true
 # If no, returns False
 # TODO consider number of units as well
+# TODO consider passing list as arrays so any number of arguments can be passed easily
 def chkAllReq(self, c):
-    for i in self.req:
-        if i == c:
-            self.req.remove(c)
-            self.course = self.course + 1
-            self.taken.append(c)
-            return True
+    result = chkReq(self.req, c)
+    
+    if result[0] == True:
+        self.req = result[1]
+        self.course = self.course + 1
+        self.taken.append(c) 
+        return True
     
     return False
 
 def updateLeaf_1(self):
     if self.course >= self.req_course:
         self.done = True
+
 
 #def ifSatMin(n):
 #    return lambda m, n : True if m >= n else False
@@ -68,7 +90,7 @@ def updateLeaf_1(self):
 def checkReq(major="CS", courses=[]):
 
     if major == "CS":
-        chkCOMSCI(courses)
+        return chkCOMSCI(courses)
 
 # Given a list of complete course, return what courses needs to be taken for 
 # each requirement
@@ -81,36 +103,62 @@ def chkCOMSCI(courses):
 
     # Preparation for the Major
     # Computer Science 1, 31, 32, 33, 35L
+    
     agents.append(
-        Agent(  ['COM+SCI 1','COM+SCI 31','COM+SCI 32','COM+SCI 33','COM+SCI 35L', 'COM+SCI M51A'],
+        Agent(  ['%and', 'COM+SCI 1','COM+SCI 31','COM+SCI 32','COM+SCI 33','COM+SCI 35L', 'COM+SCI M51A'],
                 chkAllReq,
                 "Prep-1",
                 -1,
-                6,
+                3,
                 updateLeaf_1
             )
     )
     # Mathematics 31A, 31B, 32A, 32B, 33A, 33B, 61
     agents.append(
-        Agent(  ['MATH 31A','MATH 31B','MATH 32A','MATH 32B','MATH 33A','MATH 33B','MATH 61'],
+        Agent(  ['%or', 'MATH 31A','MATH 31B','MATH 32A','MATH 32B','MATH 33A','MATH 33B','MATH 61'],
                 chkAllReq,
                 "Prep-2",
                 -1,
-                7,
+                3,
                 updateLeaf_1
             )
     )
     # Physics 1A, 1B, 1C, and 4AL or 4BL.
     agents.append(
-        Agent(  ['PHYSICS 1A','PHYSICS 1B','PHYSICS 1C','PHYSICS 4AL','PHYSICS 4BL'],
+        Agent(  ['%or', 'PHYSICS 1A','PHYSICS 1B','PHYSICS 1C', 'PHYSICS 4AL','PHYSICS 4BL', 'PHYSICS 4CL'],
                 chkAllReq,
                 "Prep-2",
                 -1,
-                7,
+                3,
                 updateLeaf_1
             )
     )
 
+    #non-leaf agent
+    root_agents=[]
+
+    def update_1(self):
+
+        isDone = False
+        netCourse = 0
+
+        for a in self.agents[self.s:self.e+1]:
+            if a.done == True:
+                isDone = True
+            netCourse = netCourse + a.course
+
+        if isDone and netCourse >= 4:
+            self.done = isDone
+
+    root_agents.append(
+        RootAgent(  
+            "major-2",
+            agents,
+            1,
+            2,
+            update_1
+            )
+    )
 
     response = {}
     response["req"] = []
@@ -119,7 +167,7 @@ def chkCOMSCI(courses):
     for c in courses:
 
         #check each requirement and see which requirement it fulfills
-        for a in agents[0:5]: 
+        for a in agents: 
 
             #If this requirement is already fulfilled, move on to the next requirement
             if a.done == True:
@@ -135,13 +183,17 @@ def chkCOMSCI(courses):
     # that has to be taken. 
 
     #Call update on all agents
-
     for a in agents:
         a.update()
+
+    for a in root_agents:
+        a.update()
+
+    # TODO inspect edge cases manually
+    # Credit is not allowed for both Computer Science 170A and Electrical and Computer Engineering 133A unless at least one of them is applied as part of the science and technology requirement or as part of the technical breadth area. 
     
-    # inpect all leaf agents, and for all unfinshed req record the courses that can be taken
-    # TODO hard-code JSON in a parser-friendly format
-    for a in agents[0:5]:
+    # inpect all leaf agents, and for all unfinshed req, record the courses that can be taken
+    for a in agents:
       
         tmp = {}
         #if this course has been completed
@@ -150,11 +202,32 @@ def chkCOMSCI(courses):
             tmp["req"] = [] 
         else:
             tmp["desc"] = a.desc
-            tmp["req"] = a.req
+            tmp["req"] = flattenReq(a.req)
 
         tmp["taken"] = a.taken
 
         response["req"].append(tmp)
+
+    # inpect all root agents
+    for a in root_agents:
+      
+        tmp = {}
+        #if this req has been completed
+        if a.done == True:
+            tmp["desc"] = "*" + a.desc #add a star to indicate completion
+            tmp["req"] = [] 
+            #mark all child agnets as done as well
+            for i in range(a.s,a.e+1):
+                response["req"][i]["desc"] = "*" +  response["req"][i]["desc"]
+                response["req"][i]["req"] = []
+        else:
+            tmp["desc"] = a.desc
+            tmp["req"] = []
+
+        tmp["taken"] = []
+
+        response["req"].append(tmp)
+
 
     return response
 
@@ -337,10 +410,8 @@ def simplifyReq(req):
 
     db.close_connection()
 
-
 # Helper function that "flattens" a req list
 # Returns a list of every course in the req list
-# Also interprets keywords like "%through" 
 def flattenReq(req):  
 
     response = []
@@ -358,13 +429,5 @@ def flattenReq(req):
 
     return response
 
-
-
-
-    #if term is a 
-
-
-# Given a JSON of requirements and a list of completed course,
-# This function will return a list of completed courses. 
 
 

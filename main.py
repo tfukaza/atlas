@@ -13,9 +13,12 @@ def main():
     #scrape.scrapeLectureList()
     
     #scrape.updateLecture()
-    scrape.buildDict()
+    #scrape.buildDict()
     #print(evalReq.chkCOMSCI(['COM+SCI 1','COM+SCI 31','COM+SCI 32','COM+SCI 33','COM+SCI 35L', 'COM+SCI M51A', 'MATH 32A']))
     
+    print(evalReq.checkReq("CS", ['PHYSICS 1A','PHYSICS 1B','MATH 32A','MATH 32B','MATH 61']))
+
+    """
     
     #test="two courses in FieldI, or course 20 and one course in FieldI"
     test=[]
@@ -49,10 +52,10 @@ def main():
         print(i)
         s = parser.parseReq(i, "COM+SCI", scrape.dept_dict)
         print(s)
-        e = evalReq.simplifyReq(s)
-        print(e)
-        f = evalReq.flattenReq(e)
-        print(f)
+        #e = evalReq.simplifyReq(s)
+        #print(e)
+        #f = evalReq.flattenReq(e)
+        #print(f)
         #print(evalReq.chkReq(s, "COM+SCI 100"))
         #print(s)
         #print(evalReq.chkReq(s, "COM+SCI 101"))
@@ -60,7 +63,7 @@ def main():
         print("--------------------")
     
     
-
+    """
 
 
 
