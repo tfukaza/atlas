@@ -370,6 +370,7 @@ def parseReq(html, major="", dict = []):
                         cur=("%term-" + tokens[0] + ":")
                         stack.insert(0, ["name", tokens[3:], [-1, -1]])
         
+                    #TODO chnage to course in <name>
                     #one course in <Field>
                     elif len(tokens) > 2 and (tokens[1] == 'course' or tokens[1] == "courses") and tokens[2] == 'in' and isField(tokens[3]):
                         eq[-1].append("%field-" + tokens[0] + ":" + tokens[3])

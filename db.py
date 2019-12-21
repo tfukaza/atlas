@@ -23,7 +23,6 @@ def open_connection(path="config"):
     global connection 
     global cursor 
 
-
     print("Opening config file")
     f = open(path,"r")
 
@@ -58,6 +57,7 @@ def init_db():
     CREATE TABLE "courses"
     (
         "dept"          char(10),
+        "course_order"  int,
         "course_num"    char(5),
         "course_title"  char(100),
         "course_unit"   char(10),
@@ -147,6 +147,7 @@ def updateCourse(course):
         command = "INSERT INTO courses "
         command+="VALUES ("
         command+="'" + course["dept"] + "', "
+        command+=" " + str(course["course_order"]) + ", "
         command+="'" +course["course_num"] + "', "
         command+="'" +course["course_title"] + "', "
         command+="'" +course["course_unit"] + "', "
@@ -155,10 +156,12 @@ def updateCourse(course):
         command+="'" +course["course_grade"] + "', "
         command+="'" +course["course_desc"] + "');"
 
+    #TODO leave course order alone in an update
     # if course exist, update it
     else:
         command = "UPDATE courses"
         command+= "SET"
+        command+= "course_order = '" + result[0][1] + "', "
         command+= "course_num = '" + course["course_num"] + "', "
         command+= "course_title = '" + course["course_title"] + "', "
         command+= "course_unit = '" + course["course_unit"] + "', "
@@ -247,3 +250,50 @@ def updateDis(id, term, lec):
 
     cursor.execute(command)
     connection.commit()
+
+def getCourseRange(start, end):
+
+    #seperate courses 
+    tmp_s = start.split()
+    start_dept = tmp_s[0]
+    start_num = tmp_s[1]
+
+    tmp_e = end.split()
+    end_dept = tmp_e[0]
+    end_num = tmp_e[1]
+
+    #check the index number of start course
+    chk = "SELECT course_order FROM courses WHERE dept='" + start_dept + "' AND course_num='" + start_num + "';"
+    cursor.execute(chk)
+    result = cursor.fetchall()
+    print(result)
+    start_num = result[0][0]
+
+    #check the index number of end course
+    chk = "SELECT course_order FROM courses WHERE dept='" + end_dept + "' AND course_num='" + end_num + "';"
+    cursor.execute(chk)
+    result = cursor.fetchall()
+    print(result)
+    end_num = result[0][0]
+    print(end_num)
+
+    #get course in that range
+    chk = "SELECT dept, course_num FROM courses WHERE course_order BETWEEN " + str(start_num) + " AND " + str(end_num) + ";"
+    cursor.execute(chk)
+    result = cursor.fetchall()
+
+    response = []
+
+    for r in result:
+        response.append((trim(r[0]) + " " + trim(r[1])))
+
+    return response
+
+#helper function to trim off whitespaces
+def trim(s):
+    while s[-1] == " ":
+        s = s[0:-1]
+    return s
+
+
+

@@ -39,10 +39,7 @@ def updateLecture():
         for dis in discussions[1:]:
             print(dis)
             db.updateDis(dis["course_id"], trim(lec[1]), dis)
-            
-
-
-
+        
     db.close_connection()
 
 # This function will take a class id and term, and return their latest info
@@ -247,8 +244,6 @@ def scrapeLectureList():
 
     #for each course, use the obtained info to get the available lectures and its course_id
     for c in courses:
-
-        
 
         dept_id = trim(c[0]).replace("&", "%26")
         number = trim(c[1])
@@ -484,11 +479,16 @@ def scrapeCourses():
         # query a list of courses
         course_div = query(".media-body")
 
+        i = 0
+
         #for each course
         for div in course_div:
+            i = i + 1
             #retrieve description of course
-            course_info = parseDesc(pq(div), dept_id, dept_dict)
+            course_info = parseDesc(pq(div), dept_id, dept_dict, i)
             print(course_info["course_num"])
+
+            
 
             #skip if there is a class with no description
             if course_info["course_title"] == "void":
@@ -502,7 +502,7 @@ def scrapeCourses():
     db.close_connection()
 
 
-def parseDesc(html, major="", dept=[]):
+def parseDesc(html, major="", dept=[], num = 0):
     
     #C = Course()
     s={}
@@ -516,6 +516,8 @@ def parseDesc(html, major="", dept=[]):
     id_end = title.find(".")    
     c_id = title[0:id_end]      #get course ID 
     
+    s["course_order"] = num
+
     #scrape for the course id
 
     s["course_num"] = c_id
