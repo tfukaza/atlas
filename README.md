@@ -36,4 +36,5 @@ TODO (Prototype):
 
 - [ ] Build a parser to scrape and store course information in an SQL database.
 - [ ] Provide functions to easily retreive data neccesary to develop frontend code
+- [ ] Extend scraper to collect information regarding GE courses
 
