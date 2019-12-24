@@ -1,6 +1,14 @@
+##############################
+# This module is the interface for other python modules to interact with a
+# PostgreSQL database.  
+# It contains functions to maintain the database, as well as 
+# functions to retrieve data from the database in useful manners
+##############################
+
 import psycopg2
 import json
 
+#Constants used to run the database
 f = None
 usr = ""
 passwd = ""
@@ -10,61 +18,35 @@ database = ""
 
 connection = None
 cursor = None
+# =======================
+# Initializes the tables in the database
+# Make sure there are no tables in the database when running this, otherwise the 
+# function will return an error
+# =======================
 
-def open_connection(path="config"):
-
-    global f 
-    global usr 
-    global passwd 
-    global host 
-    global port 
-    global database 
-
-    global connection 
-    global cursor 
-
-    print("Opening config file")
-    f = open(path,"r")
-
-    usr = f.readline()
-    passwd = f.readline()
-    host = f.readline()
-    port = f.readline()
-    database = f.readline()
-
-    #make sure to remove the newlines
-    usr = usr[:-1]
-    passwd = passwd[:-1]
-    host = host[:-1]
-    port = port[:-1]
-
-    print("Establishing connection with database")
-    connection = psycopg2.connect(  user = usr,
-                                    password = passwd,
-                                    host = host,
-                                    port = port,
-                                    database = database)
-    cursor = connection.cursor()
-
-    cursor.execute("SELECT version();")
-    record = cursor.fetchone()
-    print("Connected to: ", record, "\n")
-
-#This function is to be used only when initializing the database for the first time
 def init_db():
 
+    print("initializing")
     cursor.execute("""
+
+    CREATE TABLE "departments"
+    (
+        "mode"          char(10),
+        "dept_id"       char(10),
+        "dept_name"     char(100)
+    );
+
     CREATE TABLE "courses"
     (
         "dept"          char(10),
         "course_order"  int,
-        "course_num"    char(5),
-        "course_title"  char(100),
+        "course_num"    char(8),
+        "course_title"  char(200),
         "course_unit"   char(10),
         "course_type"   char(15),
         "course_req"    json,
         "course_grade"  char(5),
-        "course_desc"   char(1000)
+        "course_desc"   char(1500)
     );
 
     CREATE TABLE "lectures"
@@ -106,6 +88,74 @@ def init_db():
     """)
     connection.commit()
 
+
+# =======================
+# Provided a path to the config file, opens a connection to the database using the 
+# provided configurations
+# Config files should be a text file containing the:
+#   database username
+#   password
+#   IP address
+#   port number
+#   database name
+# in each line 
+# =======================
+def open_connection(path="config"):
+
+    global f 
+    global usr 
+    global passwd 
+    global host 
+    global port 
+    global database 
+
+    global connection 
+    global cursor 
+
+    print("Opening config file")
+    f = open(path,"r")
+
+    usr = f.readline()
+    passwd = f.readline()
+    host = f.readline()
+    port = f.readline()
+    database = f.readline()
+
+    #make sure to remove the newlines
+    usr = usr[:-1]
+    passwd = passwd[:-1]
+    host = host[:-1]
+    port = port[:-1]
+
+    print("Establishing connection with database")
+    connection = psycopg2.connect(  user = usr,
+                                    password = passwd,
+                                    host = host,
+                                    port = port,
+                                    database = database)
+    cursor = connection.cursor()
+
+    cursor.execute("SELECT version();")
+    record = cursor.fetchone()
+    print("Connected to: ", record, "\n")
+
+# =======================
+# Closes connection with the database 
+# =======================
+
+def close_connection():
+ 
+    if(connection):
+        cursor.close()
+        connection.close()
+    else:
+        print("No open connections")
+
+
+# =======================
+# Queries the databse, provided a command as a string
+# =======================
+
 def get_db(q):
 
     cursor.execute(q)
@@ -114,29 +164,45 @@ def get_db(q):
 
     return result
 
-def close_connection():
- 
-    if(connection):
-        cursor.close()
-        connection.close()
-    else:
-        print("")
+# =======================
+# Deletes tables in the database
+# =======================
 
 def delete_db():
     cursor.execute("""
+    DROP TABLE departments;
     DROP TABLE courses;
     DROP TABLE lectures;
     DROP TABLE discussions;
     """)
     connection.commit()
 
+# =======================
+# Adds a department to the table
+# Ignored if department already exists
+# =======================
 
-# given a class info formatted as a list (in JSON style), adds it to the db
-# if course does not exist, it will add it
+def addDept(mode, dept_id, dept_name):
+
+    result = get_db("SELECT * FROM departments WHERE dept_id='" + dept_id + "';")
+
+    if len(result) == 0:
+        command = "INSERT INTO departments "
+        command+="VALUES ("
+        command+="'" + mode + "', "
+        command+="'" + dept_id + "', "
+        command+="'" + dept_name + "'); "
+        cursor.execute(command)
+        connection.commit()
+
+# =======================
+# Given information regarding a course, updates its information in the table
+# If the course does not exist yet, it will be newly created
+# =======================
 def updateCourse(course):
 
     #check if course exists in db
-    chk = "SELECT * FROM courses WHERE dept='" + course["dept"] + "' AND course_num='" + course["course_num"] + "';"
+    chk = "SELECT course_order FROM courses WHERE dept='" + course["dept"] + "' AND course_num='" + course["course_num"] + "';"
     cursor.execute(chk)
     result = cursor.fetchall()
 
@@ -156,12 +222,11 @@ def updateCourse(course):
         command+="'" +course["course_grade"] + "', "
         command+="'" +course["course_desc"] + "');"
 
-    #TODO leave course order alone in an update
     # if course exist, update it
     else:
-        command = "UPDATE courses"
-        command+= "SET"
-        command+= "course_order = '" + result[0][1] + "', "
+        command = "UPDATE courses "
+        command+= "SET "
+        command+= "course_order = " + str(result[0][0]) + ", "
         command+= "course_num = '" + course["course_num"] + "', "
         command+= "course_title = '" + course["course_title"] + "', "
         command+= "course_unit = '" + course["course_unit"] + "', "
@@ -174,8 +239,9 @@ def updateCourse(course):
     cursor.execute(command)
     connection.commit()
 
-# Given a course_id and term, add it to the lecture database
-# If it already exists, ignore
+# =======================
+# Given an id and term for a lecture, adds it to the table if it does not exist yet
+# =======================
 
 def addLecId(dept, num, id, term):
 
@@ -191,8 +257,9 @@ def addLecId(dept, num, id, term):
         cursor.execute(command)
         connection.commit()
 
-# Given a course_id and term, add it to the lecture database
-# If it already exists, ignore
+# =======================
+# Given an id and term for a lecture, adds it to the table if it does not exist yet
+# =======================
 
 def addDisId(lec_id, id, term):
 
@@ -207,8 +274,10 @@ def addDisId(lec_id, id, term):
         cursor.execute(command)
         connection.commit()
 
-# update a lecture given id and term
-# This function assumes the record already exists
+# =======================
+# Given an id and term for a lecture, adds it and its information to the table
+# This function assumes the lecture record already exists
+# =======================
 
 def updateLec(id, term, lec):
 
@@ -229,8 +298,9 @@ def updateLec(id, term, lec):
     cursor.execute(command)
     connection.commit()
 
-# update a lecture given id and term
-# This function assumes the record already exists
+# =======================
+# Given an id and term for a discussion, adds it to the table if it does not exist yet
+# =======================
 
 def updateDis(id, term, lec):
 
@@ -250,6 +320,17 @@ def updateDis(id, term, lec):
 
     cursor.execute(command)
     connection.commit()
+
+##########################
+# Below are functions to retrieve data from the database in meaningful ways
+##########################
+
+
+# =======================
+# Given two course names, returns all courses that exists between them
+# example:
+#   (MATH 31A, MATH 32B) => [MATH 31A, MATH 31B, MATH 32A, MATH 32B]  
+# =======================
 
 def getCourseRange(start, end):
 
@@ -288,6 +369,7 @@ def getCourseRange(start, end):
         response.append((trim(r[0]) + " " + trim(r[1])))
 
     return response
+
 
 #helper function to trim off whitespaces
 def trim(s):

@@ -1,22 +1,29 @@
 import scrape
 import evalReq
 import parser
+import db
 
 def main():
    
     #scrape.reset()
 
     #initialize the database
-    
+    #db.open_connection("../../config")
+    #db.delete_db()
+    #db.init_db()
+    #db.close_connection()
+
     #scrape.scrapeCourses()
 
-    #scrape.scrapeLectureList()
+    scrape.scrapeLectureList("20W")
+    scrape.scrapeLectureList("20S")
+    scrape.scrapeLectureList("20F")
     
     #scrape.updateLecture()
     #scrape.buildDict()
     #print(evalReq.chkCOMSCI(['COM+SCI 1','COM+SCI 31','COM+SCI 32','COM+SCI 33','COM+SCI 35L', 'COM+SCI M51A', 'MATH 32A']))
     
-    print(evalReq.checkReq("CS", ['PHYSICS 1A', 'PHYSICS 1B','MATH 32A','MATH 32B','MATH 61']))
+    #print(evalReq.checkReq("CS", ['PHYSICS 1A', 'PHYSICS 1B','MATH 32A','MATH 32B','MATH 61']))
 
     """
     

@@ -1,11 +1,15 @@
+##############################
+# This module contains the parser that takes a English plaintext describing
+# requisites for a course, and outputs a formatted list containing an equivalent expression
+##############################
+
 import json
+
+# Tokenizer
 
 def tokenizeReq(string, dept_dict):
 
-    #print("tokenizing")
-
-    #l = list(string)
-
+    
     for name in dept_dict:
         string = string.replace(name[1], name[0])
     """
@@ -37,6 +41,8 @@ def tokenizeReq(string, dept_dict):
             i = i + 1
 
     return tok
+
+# Below are helper functions to parse a req
 
 def cleanID(s):
         
@@ -75,6 +81,8 @@ def isDelim(string):
         return True
     return False
 
+
+# The main parser
 
 def parseReq(html, major="", dict = []):
 
@@ -566,6 +574,7 @@ def parseReq(html, major="", dict = []):
 
     return result
 
+# Unused function
 
 def formatList(list):
 

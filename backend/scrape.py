@@ -1,9 +1,17 @@
+##############################
+# This module contains the scraper that collects various information 
+# from corresponding websites. 
+##############################
+
 import urllib.request
 import urllib.parse
 import re
 import psycopg2
 from pyquery import PyQuery as pq 
 import json
+import aiohttp
+import asyncio
+from concurrent.futures import FIRST_COMPLETED
 
 import parser 
 import db
@@ -11,17 +19,20 @@ import db
 dept_dict = []
 dept = []
 
+#helper function to trim off whitespaces
+def trim(s):
+    while s[-1] == " ":
+        s = s[0:-1]
+    return s
 
-
-###########################################
-# Functions below are to be invoked frequently
-###########################################
-
-#This is the cron function that invokes other functions to update lecture/discusison info in the database
+# =======================
+# This function invokes all neccesary functions needed to update lecture information
+# in the database to its latest state
+# =======================
 
 def updateLecture():
 
-    db.open_connection("../db.config")
+    db.open_connection("../../config")
 
     #get all lectures listed
     lectures = db.get_db("SELECT course_id, term FROM lectures")
@@ -42,15 +53,21 @@ def updateLecture():
         
     db.close_connection()
 
-# This function will take a class id and term, and return their latest info
-
-def scrapeLectureInfo(term, id):
+# helper function to generate URL to get course info based on term and ID
+def getLectureInfoURL(term, id):
 
     url="https://sa.ucla.edu/ro/Public/SOC/Results?t="
     url+=term
     url+="&sBy=classidnumber&id="
     url+=id
     url+="&btnIsInIndex=btn_inIndex"
+
+    return url
+
+# This function will take a class id and term, and return their latest info
+def scrapeLectureInfo(term, id):
+
+    url=getLectureInfoURL(term, id)
     #request the webpage
     request = urllib.request.Request(url)
     response = urllib.request.urlopen(request)
@@ -115,6 +132,8 @@ def scrapeLectureInfo(term, id):
                             ))
     
     return lec
+
+# A helper function to properly format lecture/discussion info
 
 def formatStat(name, id, stat, waitlist, day, time, loc, inst):
 
@@ -225,17 +244,21 @@ def formatStat(name, id, stat, waitlist, day, time, loc, inst):
 
     return info
 
-###########################################
-# Functions below are to be invoked somewhat regularly
-###########################################
+# =======================
+# This function will access the databse for all the courses, 
+# and for each of them, adds the currently offered lectures and its id to the database
+# =======================
 
-#This function will access the databse for all the courses, 
-#and add them to the database
-def scrapeLectureList():
+def scrapeLectureList(term = "20W"):
 
-    term="20W"
+    asyncio.run(scrapeLectureList_1(term))
+    #await scrapeLectureList_1(term)
 
-    db.open_connection("../db.config")
+async def scrapeLectureList_1(term = "20W"):
+
+    #loop=asyncio.get_event_loop()
+
+    db.open_connection("../../config")
 
 
     #get a list of every courses
@@ -243,7 +266,55 @@ def scrapeLectureList():
     courses = db.get_db("SELECT dept, course_num, course_title, course_unit FROM courses")
 
     #for each course, use the obtained info to get the available lectures and its course_id
+    
+    pending = set()
+    
     for c in courses:
+
+        # halt loop if thread pool is full
+        while len(pending) > 200:
+            # check if the tasks are finshed
+            done, pending = await asyncio.wait(pending, return_when = FIRST_COMPLETED)
+
+            for d in done:
+                ids = d.result()
+                for i in ids:
+                    db.addLecId(trim(c[0]), trim(c[1]), i, term)
+        
+                    # Initialize info for the lecture, as well as discussions (if applicable)
+                    # get the list of lecture + discussions
+                    #d_list = scrapeLectureInfo(term, i)
+                    #print(d_list)
+                    #we can skip the first element, as it is the lecture itself
+                    # iterate through the discussions, and add it tdatabase
+                    #for d in d_list[1:]:
+                    #    db.addDisId(i, d["course_id"], term)
+                #remove the task
+
+            """
+            i = 0
+            while i < len(pool):
+                    #print(pool[i].get_stack())
+                    #if a task is done
+                    if pool[i].done():
+                        #get the result and record it
+                        ids = pool[i].result()
+                        for i in ids:
+                            db.addLecId(trim(c[0]), trim(c[1]), i, term)
+
+                            # Initialize info for the lecture, as well as discussions (if applicable)
+                            # get the list of lecture + discussions
+                            #d_list = scrapeLectureInfo(term, i)
+                            #print(d_list)
+                            #we can skip the first element, as it is the lecture itself
+                            # iterate through the discussions, and add it tdatabase
+                            #for d in d_list[1:]:
+                            #    db.addDisId(i, d["course_id"], term)
+                        #remove the task
+                        pool.pop(i)
+                    else:
+                        i = i + 1
+            """
 
         dept_id = trim(c[0]).replace("&", "%26")
         number = trim(c[1])
@@ -253,44 +324,41 @@ def scrapeLectureList():
         #if number != "33":
         #    continue
 
-        #find department name
-        dept_name=""
-        #for d in dept: 
-        #    if d[0] == dept_id:
-        #        dept_name=d[1].replace(" ", "+")
-        
         #scrape for corresponding lectures
-        print(number)
-        ids = scrapeLectureId(term, dept_id, dept_name, number, title, unit)
+        
+        #TODO make session concurrent, not requests
+        #should be easy, just swap the task with resp.text()
+        pending.add(asyncio.create_task(scrapeLectureId(term, dept_id, number, title, unit)))
+        #asyncio.run(pool[-1])
+
+        
+        #ids = scrapeLectureId(term, dept_id, number, title, unit)
         
         #print(ids)
 
         #add each id to database
-        for i in ids:
-            db.addLecId(trim(c[0]), trim(c[1]), i, term)
+        #for i in ids:
+            #db.addLecId(trim(c[0]), trim(c[1]), i, term)
 
             # Initialize info for the lecture, as well as discussions (if applicable)
             # get the list of lecture + discussions
-            d_list = scrapeLectureInfo(term, i)
+            #d_list = scrapeLectureInfo(term, i)
             #print(d_list)
             #we can skip the first element, as it is the lecture itself
             # iterate through the discussions, and add it tdatabase
-            for d in d_list[1:]:
-                db.addDisId(i, d["course_id"], term)
-
-
+            #for d in d_list[1:]:
+                #db.addDisId(i, d["course_id"], term)
 
     db.close_connection()
 
-#helper function to trim off whitespaces
-def trim(s):
-    while s[-1] == " ":
-        s = s[0:-1]
-    return s
+# Given a course and its info, this function will return a list of course id's 
+# for all lectures offered for the specified term
+# This function is async to improve performance
 
-#This function will scrape a lecture and return its course_id 
+async def scrapeLectureId(term, dept_id, class_id, class_name, units):
 
-def scrapeLectureId(term, dept_id, dept_name, class_id, class_name, units):
+    
+    #print("created")
 
     #https://sa.ucla.edu/ro/Public/SOC/Results?t=
     # 20W
@@ -329,46 +397,71 @@ def scrapeLectureId(term, dept_id, dept_name, class_id, class_name, units):
     front_id_alpha = ""
     rear_id_alpha = ""
 
-    while class_id[0].isalpha():
-        front_id_alpha+=class_id[0]
-        class_id = class_id[1:]
+    if len(class_id) > 1:
+        while class_id[0].isalpha():
+            front_id_alpha+=class_id[0]
+            class_id = class_id[1:]
 
-    while class_id[-1].isalpha():
-        rear_id_alpha=class_id[-1] + rear_id_alpha
-        class_id = class_id[0:-1]
+        while class_id[-1].isalpha():
+            rear_id_alpha=class_id[-1] + rear_id_alpha
+            class_id = class_id[0:-1]
 
-    #At this point class_id should only contain digits
+        #At this point class_id should only contain digits
 
-    #pad 0's so there are 4 digits
-    tmp_l = 4 - len(class_id)
-    if tmp_l > 0:
-        class_id = ("0" * tmp_l) + class_id
+        #pad 0's so there are 4 digits
+        tmp_l = 4 - len(class_id)
+        if tmp_l > 0:
+            class_id = ("0" * tmp_l) + class_id
 
-    #add the rear alpha back
-    class_id+=rear_id_alpha
+        #add the rear alpha back
+        class_id+=rear_id_alpha
 
-    #if there was a front alpha, pad "+" accordingly and add it to the rear
-    if len(front_id_alpha) > 0:
-        tmp_a = 2 - len(rear_id_alpha)
-        class_id+=("+" * tmp_a)
-        class_id+=front_id_alpha
+        #if there was a front alpha, pad "+" accordingly and add it to the rear
+        if len(front_id_alpha) > 0:
+            tmp_a = 2 - len(rear_id_alpha)
+            class_id+=("+" * tmp_a)
+            class_id+=front_id_alpha
     
-    url+=class_id
+        url+=class_id
+    else:
+        if class_id[0].isalpha():
+            url+="0000" + class_id[0]
+        else:
+            url+="000" + class_id[0]
 
-    print(url)
 
     #request the webpage
-    request = urllib.request.Request(url)
-    response = urllib.request.urlopen(request)
+    #request = urllib.request.Request(url)
+    #response = urllib.request.urlopen(request)
 
     #store the result in a string
-    html = response.read().decode()
+    #html = response.read().decode()
+    ids=[]
+
+    html=""
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as resp:
+                html = await resp.text()
+                #if resp.status != 200:
+                ##    print("Error featch")
+                #    return ['000000000']
+                #else: 
+                #    html = str(r, 'utf-8')
+    
+    except asyncio.TimeoutError:
+        print("Timeout")
+        return ['000000000']
+
+    print(class_id)
+    print(url)
 
     #pass it into PyQuery for parsing
     query = pq(html, parser='html')
 
     lec_table = query(".class-not-checked")
-    ids=[]
+    
     
     for lec in lec_table:
         lec_id = pq(lec).attr('id')
@@ -376,19 +469,17 @@ def scrapeLectureId(term, dept_id, dept_name, class_id, class_name, units):
 
         lec_id = lec_id[0:id_end]
         ids.append(lec_id)
+
+    #print("completed")
         
     return ids
 
-###########################################
-# Functions below are to be rarely invoked 
-###########################################
-
+# =======================
+# This function enumerates the database with a list of all courses offered
+# =======================
 
 # This function scrapes for the list of departments 
-def buildDict():
-
-    global dept_dict
-    global dept
+def scrapeDept():
 
     print("scraping department list...")
 
@@ -404,6 +495,8 @@ def buildDict():
     query = pq(html, parser='html')
     dept = []
     i = 0
+
+    db.open_connection("../../config")
 
     dept_li = query("a[href *= '/Academics/Course-Descriptions/Course-Details?SA=']")
 
@@ -421,41 +514,43 @@ def buildDict():
         id = href[id_begin + 4:id_end]
         id = id.replace('%26','&')
 
-        dept.append((id, name)) #add the dept id and name tuple to list
-
-    #create a list that contains translation between departmnt code and name
-    dept_dict = dept.copy()
+        db.addDept("A", id, name)
+        #dept.append((id, name)) #add the dept id and name tuple to list
 
     #manually add some translatons
-    dept_dict.append(('C&EE', 'Civil Engineering'))
-    dept_dict.append(('EC+ENGR', 'Electrical Engineering'))
-    dept_dict.append(('C&EE', 'Civil ENGR'))
-    dept_dict.append(('EC+ENGR', 'Electrical ENGR'))
-    dept_dict.append(('AERO+ENGR', 'Mechanical and Aerospace ENGR'))
-    dept_dict.append(('CHEM', 'Chemistry'))
-    dept_dict.append(('MAT+SCI', 'Materials Science'))
-    dept_dict.append(('SEMITIC', 'SEMITICs'))
+    db.addDept("M", 'C&EE', 'Civil Engineering')
+    db.addDept("M", 'EC+ENGR', 'Electrical Engineering')
+    db.addDept("M", 'C&EE', 'Civil ENGR')
+    db.addDept("M", 'EC+ENGR', 'Electrical ENGR')
+    db.addDept("M", 'AERO+ENGR', 'Mechanical and Aerospace ENGR')
+    db.addDept("M", 'CHEM', 'Chemistry')
+    db.addDept("M", 'MAT+SCI', 'Materials Science')
+    db.addDept("M", 'SEMITIC', 'SEMITICs')
 
+    db.close_connection
 
 
 #This is the main scraper that checks all courses offered and records them in the database
 def scrapeCourses():
     
-    buildDict()
+    scrapeDept()
 
     #connect to database
     print("connecting to database")
-    db.open_connection("../db.config")
+    db.open_connection("../../config")
     #db.delete_db()
     #db.init_db()
     
+    dept = db.get_db("SELECT dept_id, dept_name FROM departments WHERE mode = 'A'")
+    dept_mapping = db.get_db("SELECT dept_id, dept_name FROM departments")
+
     print("scraping")
     
     #for every department
     for d in dept:
 
-        if d[0] != "COM+SCI":
-            continue
+        #if d[0] != "COM+SCI":
+        #    continue
 
         dept_id = d[0]
 
@@ -464,8 +559,8 @@ def scrapeCourses():
         #obtain a list of every course in that department
         dept_url="https://www.registrar.ucla.edu/Academics/Course-Descriptions/Course-Details?SA="
         #make sure to encode '&' as "%26"
-        dept_url+=dept_id.replace("&", "%26")
-        dept_url+="&funsel=3"
+        dept_url+=trim(dept_id.replace("&", "%26"))
+        dept_url+=trim("&funsel=3")
 
         dept_request = urllib.request.Request(dept_url)
         dept_response  = urllib.request.urlopen(dept_request)
@@ -485,7 +580,7 @@ def scrapeCourses():
         for div in course_div:
             i = i + 1
             #retrieve description of course
-            course_info = parseDesc(pq(div), dept_id, dept_dict, i)
+            course_info = parseDesc(pq(div), dept_id, dept_mapping, i)
             print(course_info["course_num"])
 
             
@@ -501,9 +596,11 @@ def scrapeCourses():
     #close connection with database
     db.close_connection()
 
+# This function takes a HTML file for a course description, parses it,
+# and returns an object containing the formatted info. 
 
 def parseDesc(html, major="", dept=[], num = 0):
-    
+
     #C = Course()
     s={}
 
@@ -525,7 +622,7 @@ def parseDesc(html, major="", dept=[], num = 0):
 
     name = title[id_end + 2:]   #get course title 
     
-    s["course_title"] = name
+    s["course_title"] = name.replace("'", "''")
 
     #scrape course units
     unit_p = query("p").eq(0).text()
@@ -564,6 +661,11 @@ def parseDesc(html, major="", dept=[], num = 0):
             e = desc_p.find(')')
             desc_p = desc_p[e:]
 
+        #handle cases where description starts with another disclaimer
+        if desc_p[0] == '(':
+            e = desc_p.find(')')
+            desc_p = desc_p[e:]
+
         #get the next sentence, which should state the type of the course
         type_end = desc_p.find(".")
         type_tmp = desc_p[0:type_end]
@@ -597,6 +699,7 @@ def parseDesc(html, major="", dept=[], num = 0):
             #req_tmp = desc_p[req_begin + 11:]
             req_end = desc_p.find(".")
             """
+            ====PREREQ PARSER DISBALED FOR NOW======
             result = parser.parseReq(req_tmp[0:req_end], major, dept)
             
             if result == []:
@@ -606,10 +709,11 @@ def parseDesc(html, major="", dept=[], num = 0):
                 print("Req parsing error:\t" + c_id)
 
             s["course_req"] = parser.formatList(result)
+            desc_p = desc_p[req_end+2:]
             """
             s["course_req"] = "pending"
 
-            desc_p = desc_p[req_end+2:]
+            
 
         else:
             s["course_req"] = "none"
@@ -619,7 +723,7 @@ def parseDesc(html, major="", dept=[], num = 0):
         #get the last sentence, which contains info about the grading scheme
         #iterate backwards from the end to find the second last period
         itr = 2
-        while desc_p[len(desc_p) - itr] != '.':
+        while len(desc_p) - itr >= 0 and desc_p[len(desc_p) - itr] != '.':
             itr = itr + 1
 
         grading_p = desc_p[len(desc_p) - itr + 1:]
@@ -634,15 +738,13 @@ def parseDesc(html, major="", dept=[], num = 0):
         
         s["course_grade"] = scheme
 
-        s["course_desc"] = desc_p[0:len(desc_p) - itr + 1]
+        desc_tmp = desc_p[0:len(desc_p) - itr + 1]
+        desc_tmp = desc_tmp.replace("'", "''")
+        
+
+        s["course_desc"] = desc_tmp
 
     else:
         s["course_title"] = "void"
 
     return s
-
-def reset():
-    db.open_connection("../db.config")
-    db.delete_db()
-    db.init_db()
-    db.close_connection()
