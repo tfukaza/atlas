@@ -17,7 +17,7 @@ def main():
 
     scrape.scrapeLectureList("20W")
     scrape.scrapeLectureList("20S")
-    scrape.scrapeLectureList("20F")
+    #scrape.scrapeLectureList("20F")
     
     #scrape.updateLecture()
     #scrape.buildDict()

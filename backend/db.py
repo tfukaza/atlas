@@ -184,7 +184,7 @@ def delete_db():
 
 def addDept(mode, dept_id, dept_name):
 
-    result = get_db("SELECT * FROM departments WHERE dept_id='" + dept_id + "';")
+    result = get_db("SELECT * FROM departments WHERE dept_name='" + dept_name + "';")
 
     if len(result) == 0:
         command = "INSERT INTO departments "

@@ -269,7 +269,7 @@ async def scrapeLectureList_1(term = "20W"):
     
     pending = set()
     
-    for c in courses:
+    for c in courses[0:]:
 
         # halt loop if thread pool is full
         while len(pending) > 200:
@@ -278,8 +278,8 @@ async def scrapeLectureList_1(term = "20W"):
 
             for d in done:
                 ids = d.result()
-                for i in ids:
-                    db.addLecId(trim(c[0]), trim(c[1]), i, term)
+                for i in ids["ids"]:
+                    db.addLecId(ids["dept"], ids["num"], i, term)
         
                     # Initialize info for the lecture, as well as discussions (if applicable)
                     # get the list of lecture + discussions
@@ -315,7 +315,7 @@ async def scrapeLectureList_1(term = "20W"):
                     else:
                         i = i + 1
             """
-
+        dept = trim(c[0])
         dept_id = trim(c[0]).replace("&", "%26")
         number = trim(c[1])
         title=trim(c[2]).replace(" ", "+")
@@ -328,7 +328,7 @@ async def scrapeLectureList_1(term = "20W"):
         
         #TODO make session concurrent, not requests
         #should be easy, just swap the task with resp.text()
-        pending.add(asyncio.create_task(scrapeLectureId(term, dept_id, number, title, unit)))
+        pending.add(asyncio.create_task(scrapeLectureId(term, dept, dept_id, number, title, unit)))
         #asyncio.run(pool[-1])
 
         
@@ -349,13 +349,27 @@ async def scrapeLectureList_1(term = "20W"):
             #for d in d_list[1:]:
                 #db.addDisId(i, d["course_id"], term)
 
+
+    #finish up any reamaining connections
+    while len(pending) > 0:
+        # check if the tasks are finshed
+        done, pending = await asyncio.wait(pending, return_when = FIRST_COMPLETED)
+
+        for d in done:
+            ids = d.result()
+            for i in ids["ids"]:
+                db.addLecId(ids["dept"], ids["num"], i, term)
+
+    print("Finished connection")
+
+
     db.close_connection()
 
 # Given a course and its info, this function will return a list of course id's 
 # for all lectures offered for the specified term
 # This function is async to improve performance
 
-async def scrapeLectureId(term, dept_id, class_id, class_name, units):
+async def scrapeLectureId(term, dept, dept_id, class_id, class_name, units):
 
     
     #print("created")
@@ -452,7 +466,11 @@ async def scrapeLectureId(term, dept_id, class_id, class_name, units):
     
     except asyncio.TimeoutError:
         print("Timeout")
-        return ['000000000']
+        return {"dept":dept, "num":class_id, "ids":['000000000']}
+    except:
+        print("Error")
+        return {"dept":dept, "num":class_id, "ids":['000000000']}
+    
 
     print(class_id)
     print(url)
@@ -471,6 +489,7 @@ async def scrapeLectureId(term, dept_id, class_id, class_name, units):
         ids.append(lec_id)
 
     #print("completed")
+    ids = {"dept":dept, "num":class_id, "ids":ids}
         
     return ids
 
