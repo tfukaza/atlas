@@ -38,3 +38,17 @@ TODO (Prototype):
 - [ ] Provide functions to easily retreive data neccesary to develop frontend code
 - [ ] Extend scraper to collect information regarding GE courses
 
+## Usage
+:fire:**Warning:**:fire: Atlas is currently in early prototype phase. Functionality is extremely limited and unstable. Various features and specs are subject to change frequently.
+
+#### Step 1:
+Open `backend/index.html` 
+
+#### Step 2:
+In the textbox located at the top, type in the courses you have completed so far. Currently, each course needs to be formatted as `<course's departent code> <course number>`. A department code needs to be in all caps, and use `+` in place of a space. For example, the course *Computer Science 111* will be written as `COM+SCI 111`. 
+
+If there are multiple courses, they need to be seperated by a comma, with no whitespace in between the comma and the course names. For example, if you have taken CS111 and CS118, you would write `COM+SCI 111,COM+SCI 118`.
+
+#### Step 3:
+Hit the submit button. 
+
