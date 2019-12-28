@@ -12,17 +12,6 @@ def tokenizeReq(string, dept_dict):
     
     for name in dept_dict:
         string = string.replace(name[1], name[0])
-    """
-    #these manually handle rare expressions
-    eq_dict=[]
-    eq_dict.append(("equivalent", "%equivalent"))
-    eq_dict.append(("compatible background", "%compatible"))
-    eq_dict.append((" (may be taken concurrently)", "%con"))
-    eq_dict.append(("at least one term of prior experience in same course in which collaborative learning theory is practiced and refined under supervision of instructors", "%%prior-exp"))
-
-    for name in eq_dict:
-        string = string.replace(name[0], name[1])
-    """
 
     #s = "".join(l)
     s = string
@@ -84,10 +73,20 @@ def isDelim(string):
 
 # The main parser
 
+def pop_stack(stack, tokens, state):
+    stack.pop(0)
+    stack[0][1] = tokens
+    stack[0][2] = [1, -1]
+
+#def get_precedence(token):
+
+#    if token == ''
+
 def parseReq(html, major="", dict = []):
 
     tok = tokenizeReq(html, dict)
     result = []
+    prec = []
     expression=[]
     cur=""
     cur_dept = ""
@@ -110,7 +109,6 @@ def parseReq(html, major="", dict = []):
             break
 
         state  = stack[0][0]
-       
         tokens  = stack[0][1]
         rule = stack[0][2]
         size  = len(tokens)
@@ -131,15 +129,18 @@ def parseReq(html, major="", dict = []):
             while len(eq) > 1:
                 tmp = eq[-1]
                 eq.pop(-1)
+                #if tmp has elements
                 if len(tmp) > 0:
+                    #trim off excess sublists, e.g. [[[a]]] -> [a]
                     while len(tmp) == 1 and not isinstance(tmp, str):
                         tmp = tmp[0]
-                    
+                    #append
                     if isinstance(tmp, list):
                         eq[-1].append(tmp.copy())
                     else:
                         eq[-1].append(tmp)
             
+            #trim excess sublists
             while len(eq) == 1 and not isinstance(eq, str):
                 eq = eq[0]
 
@@ -151,14 +152,15 @@ def parseReq(html, major="", dict = []):
         if state == "expression":
 
             # if this is a backtrack after parsing "eq_class"
-            # Notice that in this state, we really don;t need to check the rule #,
+            # Notice that in this state, we really don't need to check the rule #,
             # as no other tokens begin with , and, , or and - it's just being done to keep it consistant with other states
             # It's also a safety measure in case unexpcted syntax appears
             if rule[0] != -1:
-                # ,and and ,or are strong conjunctions, meaning it is by defintion the highest level of expression.
-                # Thus we can assume all preceeding subexpressions have terminated,
-                # and assume there is another subexpression following the token
-                # , and [expression]
+                # !!!,and and ,or are strong conjunctions, meaning it is by defintion the highest level of expression.
+                # !!!Thus we can assume all preceeding subexpressions have terminated,
+                # !!!and assume there is another subexpression following the token
+                # !!!, and [expression]
+                # 
                 if size > 1 and tokens[0] == ',' and tokens[1] == 'and':
                   
                     #append any remaining elements
@@ -327,9 +329,7 @@ def parseReq(html, major="", dict = []):
                     if cur != "":
                         eq[-1].append(cur)    
                     cur = ""    
-                    stack.pop(0)
-                    stack[0][1] = tokens
-                    stack[0][2] = [1, -1]
+                    pop_stack(stack, tokens, [1, -1])
                     continue
 
                 #after <course>
