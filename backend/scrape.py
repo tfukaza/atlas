@@ -249,12 +249,12 @@ def formatStat(name, id, stat, waitlist, day, time, loc, inst):
 # and for each of them, adds the currently offered lectures and its id to the database
 # =======================
 
-def scrapeLectureList(term = "20W"):
+def scrapeLectureList(term):
 
     asyncio.run(scrapeLectureList_1(term))
     #await scrapeLectureList_1(term)
 
-async def scrapeLectureList_1(term = "20W"):
+async def scrapeLectureList_1(term):
 
     #loop=asyncio.get_event_loop()
 
@@ -472,6 +472,8 @@ async def scrapeLectureId(term, dept, dept_id, class_id, class_name, units):
         return {"dept":dept, "num":class_id, "ids":['000000000']}
     
 
+    #print(class_id)
+    print(dept)
     print(class_id)
     print(url)
 

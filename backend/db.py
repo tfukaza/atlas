@@ -112,7 +112,7 @@ def open_connection(path="config"):
     global connection 
     global cursor 
 
-    print("Opening config file")
+    #print("Opening config file")
     f = open(path,"r")
 
     usr = f.readline()
@@ -135,9 +135,9 @@ def open_connection(path="config"):
                                     database = database)
     cursor = connection.cursor()
 
-    cursor.execute("SELECT version();")
-    record = cursor.fetchone()
-    print("Connected to: ", record, "\n")
+    #cursor.execute("SELECT version();")
+    #record = cursor.fetchone()
+    #print("Connected to: ", record, "\n")
 
 # =======================
 # Closes connection with the database 
@@ -347,19 +347,22 @@ def getCourseRange(start, end):
     chk = "SELECT course_order FROM courses WHERE dept='" + start_dept + "' AND course_num='" + start_num + "';"
     cursor.execute(chk)
     result = cursor.fetchall()
-    print(result)
+    #print(result)
     start_num = result[0][0]
 
     #check the index number of end course
     chk = "SELECT course_order FROM courses WHERE dept='" + end_dept + "' AND course_num='" + end_num + "';"
     cursor.execute(chk)
     result = cursor.fetchall()
-    print(result)
+    #print(result)
+    if len(result) == 0:
+        print("error")
+        return []
     end_num = result[0][0]
-    print(end_num)
+    #print(end_num)
 
     #get course in that range
-    chk = "SELECT dept, course_num FROM courses WHERE course_order BETWEEN " + str(start_num) + " AND " + str(end_num) + ";"
+    chk = "SELECT dept, course_num FROM courses WHERE dept='" + start_dept + "' AND course_order BETWEEN " + str(start_num) + " AND " + str(end_num) + ";"
     cursor.execute(chk)
     result = cursor.fetchall()
 
@@ -369,6 +372,48 @@ def getCourseRange(start, end):
         response.append((trim(r[0]) + " " + trim(r[1])))
 
     return response
+
+
+# =======================
+# Given two course names, returns all courses that exists between them
+# example:
+#   (MATH 31A, MATH 32B) => [MATH 31A, MATH 31B, MATH 32A, MATH 32B]  
+# =======================
+
+def getCourseLevel(dept, level):
+
+
+    #check the index number of start course
+    chk = "SELECT dept, course_num FROM courses WHERE dept='" + dept + "';"
+    cursor.execute(chk)
+    result = cursor.fetchall()
+    #print(result)
+
+    num_min = 0
+    num_max = 0
+
+    if level =="upperdiv":
+        num_min = 100
+        num_max = 199
+
+    response = []
+    
+    for res in result:
+        number = int(trim_nondigit(res[1]))
+        if number >= num_min and number <= num_max:
+            response.append(trim(res[0]) + " " + trim(res[1]))
+
+    return response
+
+#helper function to trim off nondigits and whitespaces
+def trim_nondigit(s):
+    while not s[-1].isdigit():
+        s = s[0:-1]
+    while not s[0].isdigit():
+        s = s[1:]
+
+    return s
+
 
 
 #helper function to trim off whitespaces
