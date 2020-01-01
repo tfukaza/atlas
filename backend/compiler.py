@@ -2,7 +2,7 @@
 import json
 import parser 
 import tool
-
+import re 
 class Agent:
     def __init__(self, name):
         self.req = []         # list of required courses/agents
@@ -42,7 +42,7 @@ class RootAgent:
 
 class RuleAgent:
     def __init__(self, name):
-        self.ref = []
+        self.ref = []           #list of parameters
         self.name = name
 
 def rec_print(result, depth = 0):
@@ -116,7 +116,66 @@ def parse():
         rec_print(result[0])
         grp_print(result[1])
 
+        with open("../frontend/majors/comsci.js","w") as output:
+            parse_write(output, result)
+        
+        with open("../frontend/majors/comsci.html","w") as output:
+            output.write(""" 
+                <!DOCTYPE html>
+                <html>
+                <body>
+
+                <form>
+                Courses: <textarea id="list" type="text" name="courses"></textarea>
+                <button type="button" onclick="chkProgress()">Submit</button>
+                </form>            
+            """)
+            output.write(result[4])
+            output.write(""" 
+                </body>
+                </html>
+                <style>
+                    div{
+                        background-color: aqua;
+                        border: red 1px solid;
+                        padding:10px;
+                    }
+                    .done{
+                        background-color: green;
+                    }
+                    .hide{
+                        display:none;
+                    }
+                </style>
+                <script src = "../scrape.js"></script>
+                <script src = "../atlasAudit.js"></script>
+                <script src = "comsci.js"></script>
+                <script src = "../checkProgress.js"></script>
+            """)
+            output.write("""
+                <script>
+                function select_opt(element, value){
+                
+                    let e = element.parentNode.firstChild;
+                    do{
+                        if (e.classList.contains(value)){
+                            e.classList.remove("hide");
+                        }
+                        else if (!e.classList.contains("sel")){
+                            e.classList.add("hide");
+                        }
+                    }
+                    while(e = e.nextSibling)
+
+                }
+                </script>
+                """)
+
+
+
 def parse_req(req, l, state, req_name):
+
+    html=""
 
     root_buffer = []
     agent_buffer = []
@@ -165,6 +224,9 @@ def parse_req(req, l, state, req_name):
                         req_name = req_name
                 else:
                     req_name = name
+
+                html+="<div class=\"group " + req_name + "\">" 
+                html+="<h3>" + req_name + "</h3>" 
                 # Add another option 
                 # By syntax this must be an instance of OptAgent 
                 root_buffer.append(RootAgent(req_name))
@@ -190,7 +252,11 @@ def parse_req(req, l, state, req_name):
                         name = req_name + "." + name[1]
                     else:
                         name = req_name
-                
+
+                html+="<div class=\"req " + name + "\">" 
+                html+="<h3>" + name + "</h3>" 
+               
+
                 #If there is already a group in the buffer, add this req to its reference list 
                 if len(root_buffer) > 0 and root_buffer[-1].isClosed == False:
                     root_buffer[-1].ref.append(name)
@@ -221,6 +287,10 @@ def parse_req(req, l, state, req_name):
                 else:
                     req_name = name
 
+                html+="<div class=\"opt " + req_name + "\">" 
+                html+="<h3>" + req_name + "</h3>" 
+                
+
                 #If there is already a group in the buffer, add this req to its reference list 
                 if len(root_buffer) > 0 and root_buffer[-1].isClosed == False:
                     root_buffer[-1].ref.append(req_name)
@@ -242,6 +312,8 @@ def parse_req(req, l, state, req_name):
                 #add the rule to the rule list
                 rule_buffer.append(RuleAgent(name))
 
+                html+="<div class=\"rule " + name + "\">" 
+                
                 state="rule-global"
                 l = l + 1
                 continue
@@ -249,14 +321,15 @@ def parse_req(req, l, state, req_name):
 
             #/option
             elif length > 2 and line[0] == "/" and line[1] == "o" and line[2] == "p":
+                #html+="</div>"
                 state = "opt"
                 l = l + 1
-                return [agent_buffer, root_buffer, rule_buffer, l]
+                return [agent_buffer, root_buffer, rule_buffer, l, html]
             
             elif length > 2 and line[0] == "/" and line[1] == "g" and line[2] == "r":
                 state = "group"
                 l = l + 1
-                return [agent_buffer, root_buffer, rule_buffer, l]
+                return [agent_buffer, root_buffer, rule_buffer, l, html]
             
             else:
                 l = l + 1
@@ -271,19 +344,21 @@ def parse_req(req, l, state, req_name):
                 #consume whitespace
                 while line[0] == " " or line[0] == "\t":
                     line = line[1:]
+    
                 
-
+                html+="<p>" + line + "</p>" 
 
                 req_list = []
                 #if the courses are already parsed
                 if line[0] == "[":
                     #convert it to an object 
                     req_list = tool.string2list(trim_nonalpha(line))
-                if line[0] == "%":
+                elif line[0] == "%":
                     req_list = [trim_nonalpha(line)]
                 #otherwise, parse the list
                 else:
                     req_list = parser.parseReq(trim_nonalpha(line))
+
 
                 #process req list
                 req_list = tool.simplifyReq(req_list)
@@ -307,6 +382,8 @@ def parse_req(req, l, state, req_name):
             
             elif length > 2 and line[0] == "/" and line[1] == "R" and line[2] == "E":
                 #This indicates a requirement is over
+                html+="</div>" 
+                
                 state = "expression"
                 l = l + 1
                 continue
@@ -318,6 +395,9 @@ def parse_req(req, l, state, req_name):
 
                     #rule in <REQ> must be local
                     agent_buffer[-1].rules.append(RuleAgent(name))
+
+                    html+="<div class=\"rule " + name + "\">" 
+                    html+="<p>" + name + "</p>" 
 
                     state="rule-local"
                     l = l + 1
@@ -342,7 +422,7 @@ def parse_req(req, l, state, req_name):
                 name = trim_nonalpha(line)
                 # Add another option 
                 # By syntax this must be an instance of OptAgent 
-
+                html+="<div class=\"option " + name + "\">"
                
                 agent_buffer[-1].options.append([name, [], [], [] ])
                 print("ENTER OPT")
@@ -355,12 +435,24 @@ def parse_req(req, l, state, req_name):
                 print("EXIT OPT")
                 state="OPT"
                 l = rec_result[3]
+                html+=rec_result[4]
+                html+="</div>"
                 continue
 
             #/OPT
             elif length > 2 and line[0] == "/" and line[1] == "O" and line[2] == "P":
+                
                 state = "expression"
                 l = l + 1 
+
+                #create dropdown memnu
+                html+="<select onChange=\"select_opt(this, this.value)\" class=\"sel\">"
+                for o in agent_buffer[-1].options:
+                    html+="<option value=\"" + o[0] + "\">" + o[0] + "</option>"
+                html+="</select>"
+                html+="</div>"
+               
+
                 continue
             else:
                 l = l + 1
@@ -368,11 +460,13 @@ def parse_req(req, l, state, req_name):
 
         elif state == "rule-local":
             #course
-            if (length > 2 and line[0] == "c" and line[1] == "o" and line[2] == "u") or line[0] == "A" or line[0] == "B":
+            if (length > 2 and line[0] == "c" and line[1] == "o" and line[2] == "u")  or line[0] == "A" or line[0] == "B":
                 line = line[7:]
                 #consume whitespace
                 while line[0] == " " or line[0] == "\t":
                     line = line[1:]
+
+                html+="<p>" + line + "</p>"
 
                 req_list = []
                 #if the courses are already parsed
@@ -383,12 +477,13 @@ def parse_req(req, l, state, req_name):
                 else:
                     req_list = parser.parseReq(trim_nonalpha(line))
 
-                agent_buffer[-1].rules[-1].ref = req_list
+                agent_buffer[-1].rules[-1].ref.append(req_list)
+                
                 l = l + 1
                 continue
-            
             elif length > 2 and line[0] == "/" and line[1] == "R" and line[2] == "U":
                 state = "req"
+                html+="</div>" 
                 l = l + 1
                 continue
 
@@ -399,6 +494,8 @@ def parse_req(req, l, state, req_name):
                 #consume whitespace
                 while line[0] == " " or line[0] == "\t":
                     line = line[1:]
+
+                html+="<p>" + line + "</p>"
 
                 req_list = []
                 #if the courses are already parsed
@@ -415,6 +512,7 @@ def parse_req(req, l, state, req_name):
             
             elif length > 2 and line[0] == "/" and line[1] == "R" and line[2] == "U":
                 state = "expression"
+                html+="</div>" 
                 l = l + 1
                 continue
         
@@ -441,16 +539,18 @@ def parse_req(req, l, state, req_name):
             
                 state="group"
                 l = rec_result[3]
+                html+=rec_result[4]
                 continue
 
              #/GROUP
             elif length > 2 and line[0] == "/" and line[1] == "G" and line[2] == "R":
+                html+="</div>"
                 state = "expression"
                 l = l + 1 
                 continue
 
         
-    return [agent_buffer, root_buffer, rule_buffer, l]
+    return [agent_buffer, root_buffer, rule_buffer, l, html]
 
     """
 
@@ -462,8 +562,145 @@ def parse_req(req, l, state, req_name):
         print("---")
     """
 
+def parse_write(output, result):
+
+    output.write(
+        """function audit_build(option){
+//agents
+agents= [];
+//root agents
+root_agents= [];
+//rules
+rules = [];
+//global list of completed courses 
+taken = []
+
+    let a_len = 0; 
+    \n\n"""
+    )
+
+    parse_write_rec(output, result, "\t")
+
+    output.write("}")
+
+def parse_write_rec(output, result, depth):
+
+    #output the agents
+    for ag in result[0]:
+
+        if isinstance(ag, Agent):
+            txt =  depth + "agents.push(new Agent(\n"
+            txt += depth + "\t'" + ag.name + "',\n"
+            txt += depth + "\t" + str(ag.req) + "\n"
+            txt += depth + "\t)\n"
+            txt += depth + ");\n\n"
+
+            func = ""
+            #handle chk function
+            params = re.split("[(), ]+", ag.chk)
+            if params[0] == "CHECK":
+                func = "check"
+            elif params[0] == "CHECK_UNIT":
+                func = "check_unit"
+            else:
+                raise Exception("unknown function " + params[0])
+            txt+=depth + "a_len = agents.length-1;\n"
+            txt += depth + "agents[a_len].chk = " + func + ".bind(agents[a_len]"
+            for p in params[1:]:
+                txt+=", " + p
+            txt+=");\n"
+
+            #handle upd function
+            params = re.split("[(), ]+", ag.upd)
+            if params[0] == "FINISH":
+                func = "finish"
+            elif params[0] == "FINISH_UNIT":
+                func = "finish_unit"
+            else:
+                raise Exception("unknown function " + params[0])
+            txt += depth + "agents[a_len].upd = " + func + ".bind(agents[a_len]"
+            for p in params[1:]:
+                txt+=", " + p
+            txt+=");\n\n"
+            output.write(txt)
+            txt=""
+
+            #handle any rules
+            for rule in ag.rules:
+                rule_name = rule.name
+                func = ""
+                if rule_name == "NOT_USED_FOR_OTHER":
+                    func = "not_used_for_other"
+                elif rule_name == "SUBSET_RESTRICTION":
+                    func = "subset_restriction"
+                else:
+                    raise Exception("unknown rule " + rule_name) 
+
+                txt = depth + "agents[a_len].rules.push(" + func + ".bind(agents[a_len]"
+                #txt += depth + "r_len = agents[a_len].rules.length;\n" 
+                #txt += depth + "agents[a_len].rules[r_len-1].bind("
+                for param in rule.ref:
+                    txt+= "," + str(param)
+                txt+= "));\n"
+                output.write(txt)
+                txt=""
+        else:
+            # create an if statement for each option
+            for opt in ag.options:
+                txt = depth + "if (option['" + ag.name + "'] == " 
+                txt += "'" + opt[0] + "'){\n"
+                output.write(txt)
+                txt=""
+                parse_write_rec(output, opt[1:], depth + "\t")
+                txt = depth + "}\n"
+                output.write(txt)
+                txt=""
+
+    #output the groups
+    for root in result[1]:
+        txt =  depth + "root_agents.push(new RootAgent(\n"
+        txt += depth + "\t'" + root.name + "',\n"
+        txt += depth + "\t" + str(root.ref) + "\n"
+        txt += depth + "\t)\n"
+        txt += depth + ");\n\n"
+
+        func = ""
+        #handle upd function
+        params = re.split("[(), ]+", root.upd)
+        if params[0] == "FINISH":
+            func = "finish_agents"
+        elif params[0] == "FINISH_GRP":
+            func = "finish_agent_subgrp"
+        else:
+            raise Exception("unknown function " + params[0])
+
+        txt+=depth + "a_len = root_agents.length-1;\n"
+        txt += depth + "root_agents[a_len].upd = " + func + ".bind(root_agents[a_len]"
+        for p in params[1:]:
+            txt+=", " + p
+        txt+=");\n"
+        output.write(txt)
+        txt=""
+
+
+
+
+
+
+
+
+
+       
+        
+        #a[a.length-1].chk = check_req.bind(a[a.length-1]);
+        #a[a.length-1].upd = update_leaf_1.bind(a[a.length-1], 6, -1);
+
+def pase_write_fast():
+       
+
+
 def trim_nonalpha(s):
-    while not s[-1].isalpha() and not s[-1].isdigit():
+    while not s[-1].isalpha() and not s[-1].isdigit() and s[-1] != "]":
         s = s[0:-1]
     return s
 
