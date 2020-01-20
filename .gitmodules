@@ -1,0 +1,6 @@
+[submodule "atlas-backend"]
+	path = atlas-backend
+	url = https://github.com/tfukaza/atlas-backend.git
+[submodule "atlas-frontend"]
+	path = atlas-frontend
+	url = https://github.com/tfukaza/atlas-frontend.git
