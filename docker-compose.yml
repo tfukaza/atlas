@@ -1,0 +1,33 @@
+version: "3"
+# COMPOSE_TLS_VERSION=TLSv1_2
+services:
+  wait:
+    image: dadarek/wait-for-dependencies
+    depends_on:
+      - postgres
+    command: postgres:5432
+
+  postgres:
+    #image: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - "POSTGRES_USER=admin"
+      - "POSTGRES_PASSWORD=pass"
+      - "POSTGRES_DB=atlas"
+    build: atlas-backend/db/
+    volumes:
+     - pg-vol:/var/lib/postgresql/data
+  
+
+  scraper:
+    build: atlas-backend/
+    depends_on:
+      - postgres
+      - wait
+
+volumes:
+  pg-vol:
+    external: true
+    
+
