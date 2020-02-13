@@ -19,12 +19,16 @@ services:
     volumes:
      - pg-vol:/var/lib/postgresql/data
   
-
   scraper:
     build: atlas-backend/
     depends_on:
       - postgres
       - wait
+
+  webapp:
+    ports:
+      - "3000:3000"
+    build: atlas-frontend/frontend
 
 volumes:
   pg-vol:
