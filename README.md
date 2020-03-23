@@ -1,3 +1,5 @@
+![](atlas-min.png)
+
 # About
 Currently, Bruins often have a hard time figuring out what classes they should take for upcoming quarters. This is largely because information about major requirements are very dispersed and disorganized. More specifically, to find all information regarding major requirements, students need to visit...
 
